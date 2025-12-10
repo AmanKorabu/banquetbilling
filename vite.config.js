@@ -3,20 +3,20 @@ import react from '@vitejs/plugin-react-swc';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 
 export default defineConfig({
-  // IMPORTANT for Netlify deployment
-  base: '/',
-
   plugins: [
     react(),
-    basicSsl(), // Only affects local dev
+    basicSsl()
   ],
-
-  // DEV SERVER CONFIG (Netlify does NOT use this)
   server: {
     https: true,
     host: true,
-    hmr: { overlay: false },
-
+    hmr: {
+      overlay: false,
+    },
+    watch: {
+      usePolling: false,
+      interval: 100,
+    },
     proxy: {
       '/banquetapi': {
         target: 'https://membership.xpresshotelpos.com/banquetapi',
@@ -26,8 +26,6 @@ export default defineConfig({
       },
     },
   },
-
-  // BUILD OPTIMIZATION
   build: {
     minify: 'esbuild',
     sourcemap: false,
@@ -35,16 +33,11 @@ export default defineConfig({
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
-          'mui-vendor': [
-            '@mui/material',
-            '@mui/icons-material',
-            '@mui/x-date-pickers',
-          ],
+          'mui-vendor': ['@mui/material', '@mui/icons-material', '@mui/x-date-pickers'],
         },
       },
     },
   },
-
   optimizeDeps: {
     include: [
       'react',
@@ -52,7 +45,8 @@ export default defineConfig({
       'react-router-dom',
       '@mui/material',
       '@mui/x-date-pickers',
-      'dayjs',
+      'dayjs'
     ],
+    exclude: [],
   },
 });
