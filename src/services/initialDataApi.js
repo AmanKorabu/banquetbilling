@@ -1,57 +1,37 @@
-import axios from "axios";
-
-const BASE_URL = "/banquetapi";
+import api from "./apiClient";
 
 export const initialDataApi = {
+  // Fetch server date + companies + attendees
   getInitialData: async () => {
     try {
-      const hotelId = localStorage.getItem("hotel_id");
-      if (!hotelId) {
-        throw new Error("No hotel_id found");
-      }
+      const response = await api.post("/get_server_date.php");
 
-      const response = await axios.post(`${BASE_URL}/get_server_date.php`, null, {
-        params: { hotel_id: hotelId },
-      });
+      const serverDate = response.data?.result?.[0]?.ServerDate || null;
+      const billingCompanies = response.data?.result2 || [];
+      const attendees = response.data?.result3 || [];
 
-      if (response.status === 200 && response.data) {
-        const serverDate = response.data.result?.[0]?.ServerDate || null;
-        const billingCompanies = response.data.result2 || [];
-        const attendees = response.data.result3 || [];
-        
-        return {
-          serverDate,
-          billingCompanies,
-          attendees,
-        };
-      } else {
-        throw new Error("Failed to fetch initial data");
-      }
+      return {
+        serverDate,
+        billingCompanies,
+        attendees,
+      };
     } catch (error) {
       console.error("Error fetching initial data:", error);
       throw error;
     }
   },
 
+  // Fetch statuses
   getStatuses: async () => {
     try {
-      const hotelId = localStorage.getItem("hotel_id");
-      if (!hotelId) {
-        throw new Error("No hotel_id found");
-      }
-
-      const response = await axios.post(`${BASE_URL}/search_status.php`, null, {
+      const response = await api.post("/search_status.php", null, {
         params: {
-          hotel_id: hotelId,
           search_param: "",
           para: "single_quot",
         },
       });
 
-      if (response.status === 200 && response.data && Array.isArray(response.data.result)) {
-        return response.data.result;
-      }
-      return [];
+      return response.data?.result || [];
     } catch (error) {
       console.error("Error fetching statuses:", error);
       throw error;
