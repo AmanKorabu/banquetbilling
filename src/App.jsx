@@ -111,7 +111,7 @@ function App() {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <BrowserRouter>
+      <BrowserRouter basename="/xpressbanquet">
         <ToastContainerOnce />
         <Suspense fallback={<div style={{ textAlign: "center", marginTop: 50 }}>Loading...</div>}>
           {routes}
