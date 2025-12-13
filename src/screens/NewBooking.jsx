@@ -1804,8 +1804,6 @@ function NewBooking() {
             next?.focus();
         }
     }, []);
-
-
     /* ----------------------- Enhanced Picker Props ------------------------ */
     const datePickerProps = useMemo(() => ({
         format: "DD-MM-YYYY",
