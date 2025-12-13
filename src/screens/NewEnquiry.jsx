@@ -32,7 +32,6 @@ const parseToDayjs = (value) => {
     return dayjs(`${yyyy}-${mm}-${dd}`);
   }
 
-  // Fallback – let dayjs try
   return dayjs(str);
 };
 
@@ -53,6 +52,54 @@ function NewEnquiry() {
   const [openSaveConfirm, setOpenSaveConfirm] = useState(false);
   const [loadingAttendees, setLoadingAttendees] = useState(false);
 
+  // ✅ Date Validation (like BillList)
+  const [dateValidation, setDateValidation] = useState({
+    isValid: true,
+    error: null,
+  });
+
+  const validateDateRange = useCallback((from, to) => {
+    if (!from || !to) return { isValid: true, error: null };
+
+    const fromDate = dayjs(from);
+    const toDate = dayjs(to);
+
+    const isValid = toDate.isAfter(fromDate) || toDate.isSame(fromDate, "day");
+    return {
+      isValid,
+      error: isValid
+        ? null
+        : "Booking To date cannot be earlier than Booking From date",
+    };
+  }, []);
+
+  // ✅ helper: keep individual keys in sessionStorage (party/company/function)
+  const syncDirectSessionKeys = useCallback((data) => {
+    try {
+      sessionStorage.setItem("partyId", data.partyId || "");
+      sessionStorage.setItem("partyName", data.partyName || "");
+
+      sessionStorage.setItem("companyId", data.companyId || "");
+      sessionStorage.setItem("companyName", data.companyName || "");
+
+      sessionStorage.setItem("functionId", data.functionId || "");
+      sessionStorage.setItem("functionName", data.functionName || "");
+    } catch (err) {
+      console.error("Error syncing direct session keys:", err);
+    }
+  }, []);
+
+  const clearDirectSessionKeys = useCallback(() => {
+    sessionStorage.removeItem("partyId");
+    sessionStorage.removeItem("partyName");
+
+    sessionStorage.removeItem("companyId");
+    sessionStorage.removeItem("companyName");
+
+    sessionStorage.removeItem("functionId");
+    sessionStorage.removeItem("functionName");
+  }, []);
+
   // Form data state with sessionStorage persistence
   const [formData, setFormData] = useState(() => {
     try {
@@ -67,9 +114,15 @@ function NewEnquiry() {
           bookingToDate: parsed.bookingToDate
             ? dayjs(parsed.bookingToDate)
             : dayjs(),
+
           partyName: parsed.partyName || "",
+          partyId: parsed.partyId || "",
+
           companyName: parsed.companyName || "",
+          companyId: parsed.companyId || "",
+
           functionName: parsed.functionName || "",
+          functionId: parsed.functionId || "",
         };
       }
     } catch (error) {
@@ -80,9 +133,15 @@ function NewEnquiry() {
       attendedBy: "",
       bookingFromDate: dayjs(),
       bookingToDate: dayjs(),
+
       partyName: "",
+      partyId: "",
+
       companyName: "",
+      companyId: "",
+
       functionName: "",
+      functionId: "",
     };
   });
 
@@ -90,23 +149,48 @@ function NewEnquiry() {
   useEffect(() => {
     if (!isEditMode || !editingEnquiry) return;
 
-    setFormData((prev) => ({
-      ...prev,
-      // attendedBy is not in enquiry list API, so we keep existing / blank
+    const nextData = {
       bookingFromDate: editingEnquiry.FunctionFrom
         ? parseToDayjs(editingEnquiry.FunctionFrom)
-        : prev.bookingFromDate,
+        : formData.bookingFromDate,
       bookingToDate: editingEnquiry.FunctionTo
         ? parseToDayjs(editingEnquiry.FunctionTo)
-        : prev.bookingToDate,
-      partyName: editingEnquiry.PartyName || "",
-      companyName: editingEnquiry.Company || "",
-      functionName: editingEnquiry.Function || "",
+        : formData.bookingToDate,
+
+      partyName: editingEnquiry.PartyName || formData.partyName || "",
+      partyId:
+        editingEnquiry.PartyId ||
+        editingEnquiry.LedgerId ||
+        formData.partyId ||
+        "",
+
+      companyName: editingEnquiry.Company || formData.companyName || "",
+      companyId:
+        editingEnquiry.CompId ||
+        editingEnquiry.CompanyId ||
+        formData.companyId ||
+        "",
+
+      functionName: editingEnquiry.Function || formData.functionName || "",
+      functionId:
+        editingEnquiry.FunctionId ||
+        editingEnquiry.FuncId ||
+        formData.functionId ||
+        "",
+    };
+
+    setFormData((prev) => ({
+      ...prev,
+      ...nextData,
     }));
 
     // ignore any previous "new enquiry" unsaved data
     sessionStorage.removeItem("newEnquiryFormData");
-  }, [isEditMode, editingEnquiry]);
+
+    // ✅ also store direct keys (so other pages can read them)
+    syncDirectSessionKeys({ ...formData, ...nextData });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode, editingEnquiry, syncDirectSessionKeys]);
 
   // Attended By functionality
   const [showOtherAttendedBy, setShowOtherAttendedBy] = useState(false);
@@ -118,7 +202,7 @@ function NewEnquiry() {
   const companyNameRef = useRef(null);
   const functionNameRef = useRef(null);
 
-  // Persist form data to sessionStorage
+  // Persist form data to sessionStorage + also set direct keys
   useEffect(() => {
     try {
       const dataToSave = {
@@ -126,36 +210,34 @@ function NewEnquiry() {
         bookingFromDate: formData.bookingFromDate?.toISOString(),
         bookingToDate: formData.bookingToDate?.toISOString(),
       };
-      sessionStorage.setItem(
-        "newEnquiryFormData",
-        JSON.stringify(dataToSave)
-      );
+      sessionStorage.setItem("newEnquiryFormData", JSON.stringify(dataToSave));
+
+      // ✅ keep these always updated
+      syncDirectSessionKeys(formData);
     } catch (error) {
       console.error("Error saving form data:", error);
     }
-  }, [formData]);
+  }, [formData, syncDirectSessionKeys]);
+
+  // ✅ Validate dates whenever they change
+  useEffect(() => {
+    const v = validateDateRange(formData.bookingFromDate, formData.bookingToDate);
+    setDateValidation(v);
+  }, [formData.bookingFromDate, formData.bookingToDate, validateDateRange]);
 
   // Load initial data (attendees from server data)
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoadingAttendees(true);
-        console.log("🔄 Fetching initial data for enquiry...");
 
         const initialData = await initialDataApi.getInitialData();
-        console.log("📦 Raw initial data:", initialData);
 
         let attendeesData = [];
+        if (Array.isArray(initialData?.attendees)) attendeesData = initialData.attendees;
+        else if (Array.isArray(initialData?.data?.attendees)) attendeesData = initialData.data.attendees;
+        else if (Array.isArray(initialData)) attendeesData = initialData;
 
-        if (Array.isArray(initialData?.attendees)) {
-          attendeesData = initialData.attendees;
-        } else if (Array.isArray(initialData?.data?.attendees)) {
-          attendeesData = initialData.data.attendees;
-        } else if (Array.isArray(initialData)) {
-          attendeesData = initialData;
-        }
-
-        console.log("👥 Extracted attendees:", attendeesData);
         setAttendees(attendeesData);
 
         if (formData.attendedBy && attendeesData.length > 0) {
@@ -169,14 +251,12 @@ function NewEnquiry() {
         }
 
         if (attendeesData.length === 0) {
-          console.warn("⚠️ No attendees found in initial data");
           const fallbackAttendees = [
             { Userid: 1, Name: "Manager" },
             { Userid: 2, Name: "Sales Executive" },
             { Userid: 3, Name: "Reception" },
           ];
           setAttendees(fallbackAttendees);
-          console.log("🔄 Using fallback attendees:", fallbackAttendees);
         }
       } catch (err) {
         console.error("❌ Error fetching initial data:", err);
@@ -194,12 +274,11 @@ function NewEnquiry() {
       }
     };
 
-    // Load once on mount
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle updates from location state (search party / company / function)
+  // ✅ Handle updates from location state (search party / company / function)
   useEffect(() => {
     if (!location.state) return;
 
@@ -209,34 +288,34 @@ function NewEnquiry() {
 
       if (location.state.selectedParty) {
         const party = location.state.selectedParty;
+
         updates.partyName =
-          party.LedgerName ||
-          party.Name ||
-          party.partyName ||
-          party.CustName ||
-          "";
+          party.LedgerName || party.Name || party.partyName || party.CustName || "";
+        updates.partyId =
+          party.LedgerId || party.PartyId || party.CustId || party.id || "";
+
         hasUpdates = true;
       }
 
       if (location.state.selectedCompany) {
         const company = location.state.selectedCompany;
+
         updates.companyName =
-          company.CompanyName ||
-          company.Name ||
-          company.companyName ||
-          company.CompName ||
-          "";
+          company.CompanyName || company.Name || company.companyName || company.CompName || "";
+        updates.companyId =
+          company.CompId || company.CompanyId || company.id || "";
+
         hasUpdates = true;
       }
 
       if (location.state.selectedFunction) {
         const func = location.state.selectedFunction;
+
         updates.functionName =
-          func.FunctionName ||
-          func.Name ||
-          func.functionName ||
-          func.FuncName ||
-          "";
+          func.FunctionName || func.Name || func.functionName || func.FuncName || "";
+        updates.functionId =
+          func.FunctionId || func.FuncId || func.id || "";
+
         hasUpdates = true;
       }
 
@@ -253,10 +332,34 @@ function NewEnquiry() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   }, []);
 
-  // Handle date changes
-  const handleDateChange = useCallback((name, value) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  }, []);
+  // ✅ Date handlers with validation + auto-fix like BillList
+  const handleFromDateChange = useCallback(
+    (newDate) => {
+      setFormData((prev) => {
+        const next = { ...prev, bookingFromDate: newDate };
+        const v = validateDateRange(newDate, prev.bookingToDate);
+        setDateValidation(v);
+
+        if (!v.isValid) {
+          next.bookingToDate = newDate; // auto-fix
+        }
+        return next;
+      });
+    },
+    [validateDateRange]
+  );
+
+  const handleToDateChange = useCallback(
+    (newDate) => {
+      setFormData((prev) => {
+        const next = { ...prev, bookingToDate: newDate };
+        const v = validateDateRange(prev.bookingFromDate, newDate);
+        setDateValidation(v);
+        return next;
+      });
+    },
+    [validateDateRange]
+  );
 
   // Handle keydown event for form navigation
   const handleKeyDown = useCallback((e) => {
@@ -277,13 +380,13 @@ function NewEnquiry() {
   }, []);
 
   const handleToggleAttendedBy = useCallback(() => {
-    setShowOtherAttendedBy((prev) => !prev);
-    setFormData((prev) => ({
-      ...prev,
-      attendedBy: showOtherAttendedBy ? "" : prev.attendedBy,
-    }));
-    if (showOtherAttendedBy) {
+    const nextMode = !showOtherAttendedBy;
+    setShowOtherAttendedBy(nextMode);
+
+    // if switching back to LIST, clear attendedBy + other input
+    if (!nextMode) {
       setOtherAttendedByValue("");
+      setFormData((prev) => ({ ...prev, attendedBy: "" }));
     }
   }, [showOtherAttendedBy]);
 
@@ -299,11 +402,14 @@ function NewEnquiry() {
         })
       );
 
+      // ✅ ensure direct keys also updated before navigating
+      syncDirectSessionKeys(formData);
+
       navigate(`/search-${type}-enquiry`, {
         state: { currentName: formData[`${type}Name`] },
       });
     },
-    [formData, navigate]
+    [formData, navigate, syncDirectSessionKeys]
   );
 
   // Form validation
@@ -326,20 +432,28 @@ function NewEnquiry() {
       return false;
     }
 
-    return true;
-  }, [formData]);
+    // ✅ date validation
+    if (!dateValidation.isValid) {
+      toast.error(`⚠️ ${dateValidation.error}`);
+      return false;
+    }
 
-  // Handle form submission – uses same requestBody + API as NewBooking
+    return true;
+  }, [formData, dateValidation]);
+
+  // Handle form submission
   const handleSubmit = useCallback(
     async (e) => {
       e?.preventDefault();
-
       if (!validateForm()) return;
 
       const safeFormat = (date) =>
         date && dayjs(date).isValid() ? dayjs(date).format("DD-MM-YYYY") : "";
+
       const safeTimeFormat = (date) =>
-        date && dayjs(date).isValid() ? dayjs(date).format("HH:mm:ss") : "";
+        date && dayjs(date).isValid()
+          ? dayjs(date).format("HH:mm:ss")
+          : "00:00:00";
 
       const userId = localStorage.getItem("user_id") || "";
       const hotelId = localStorage.getItem("hotel_id") || "";
@@ -351,36 +465,22 @@ function NewEnquiry() {
 
       const isEdit = !!editingEnquiryId;
 
-      // For enquiry we don't have items yet → all amounts are 0
-      const subTotal = 0;
-      const totalDiscount = 0;
-      const taxable = 0;
-      const totalTax = 0;
-      const otherCharges = 0;
-      const settlementDiscount = 0;
-    //   const gross = 0;
-      const roundoff = 0;
-      const billTotal = 0;
-
-      // Build request body SAME SHAPE as NewBooking (minimal enquiry version)
       const requestBody = {
         user_id: userId,
         hotel_id: hotelId,
 
-        // Dates
         booking_date: safeFormat(formData.bookingFromDate),
         booking_date_to: safeFormat(formData.bookingToDate),
 
-        // Company / Function
-        comp_id: "",
+        comp_id: formData.companyId || "0",
         comp_name: formData.companyName || "",
         quot_status_id: "",
-        function_id: "",
+
+        function_id: formData.functionId || "0",
         function_name: formData.functionName || "",
 
-        // Party details
         party_details: {
-          party_id: "",
+          party_id: formData.partyId || "0",
           party_name: formData.partyName || "",
           contact1: "",
           contact2: "",
@@ -396,39 +496,40 @@ function NewEnquiry() {
           city: "",
         },
 
-        // Function details – minimal
         function_details: {
           occasion: formData.functionName || "",
-          function_time: "",
+          function_time: "00:00:00",
           guest_name: formData.partyName || "",
           designation: "Host",
-          arrival_time: "",
+          arrival_time: "00:00:00",
           instruction: "",
         },
 
-        // Minimal events array – required by API, but with blanks / zeros
         events: [
           {
             sel_event_id: "",
             event_name: formData.functionName || "",
             event_date: safeFormat(formData.bookingFromDate),
-            from_time: "",
-            to_time: "",
+
+            from_time: "00:00:00",
+            to_time: "00:00:00",
+
             serving_id: "",
             serving_name: "",
             venue_id: "",
             venue_name: "",
+
             pax: "",
             veg_pax: "",
             non_veg_pax: "",
             rate_per_pax: "",
             instructions: "",
+
             status_id: "",
             status_name: "Enquiry",
             venue_address: "",
 
-            // Amounts (all zero for enquiry)
-            subtotal: subTotal,
+            subtotal: 0,
             package_igst_per: 0,
             package_igst_amt: 0,
             package_cgst_per: 0,
@@ -436,7 +537,7 @@ function NewEnquiry() {
             package_sgst_per: 0,
             package_sgst_amt: 0,
             package_roundoff: 0,
-            package_total: billTotal,
+            package_total: 0,
 
             venue_charges: 0,
             venue_igst_per: 0,
@@ -448,7 +549,7 @@ function NewEnquiry() {
             venue_roundoff: 0,
             venue_total: 0,
 
-            other_charges: otherCharges,
+            other_charges: 0,
             other_igst_per: 0,
             other_igst_amt: 0,
             other_cgst_per: 0,
@@ -458,35 +559,33 @@ function NewEnquiry() {
             other_roundoff: 0,
             other_total: 0,
 
-            total_amt: billTotal,
+            total_amt: 0,
             package_id: "",
-            eventquot_id: isEdit ? editingEnquiryId : "",
+            eventquot_id: "",
             tax_per_id: "0",
             min_pax: "",
             max_pax: "",
 
-            // No menus / items in enquiry
             event_menus: [],
             event_package_menus: [],
             menu_itms_arr: [],
           },
         ],
 
-        // Quotation / enquiry IDs
-        quot_id: isEdit ? editingEnquiryId : "0",
+        quot_id: isEdit ? String(editingEnquiryId) : "0",
 
-        // Totals (same as NewBooking, but all zero)
-        package_amount: subTotal.toFixed(2),
+        package_amount: "0.00",
         venue_amount: "0.00",
-        other_amount: otherCharges.toFixed(2),
-        subtotal_all: subTotal.toFixed(2),
-        discount: totalDiscount.toFixed(2),
+        other_amount: "0.00",
+        subtotal_all: "0.00",
+        discount: "0.00",
         fright: "0.00",
-        taxable: taxable.toFixed(2),
-        tax: totalTax.toFixed(2),
+        taxable: "0.00",
+        tax: "0.00",
         charges: "0.00",
-        roundoff: roundoff.toFixed(2),
-        bill_amount: billTotal.toFixed(2),
+        roundoff: "0.00",
+        bill_amount: "0.00",
+
         bill_comp_id: "",
 
         single_event: "1",
@@ -496,23 +595,20 @@ function NewEnquiry() {
         attended_by: formData.attendedBy || "",
         from_list: 1,
 
-        // Entry date/time
         entry_date: safeFormat(dayjs()),
         entry_time: safeTimeFormat(dayjs()),
 
-        // Other / settlement
-        other_ch_bill: otherCharges.toFixed(2),
-        settl_disc_bill: settlementDiscount.toFixed(2),
+        other_ch_bill: "0.00",
+        settl_disc_bill: "0.00",
 
-        // Flags
         enquiry: 1,
         AddedFrom: "E",
       };
 
-      console.log("📦 Submitting enquiry payload to bookingApi:", requestBody);
+      console.log("📦 Submitting enquiry payload:", requestBody);
 
       try {
-        const response = await bookingApi.submitEnquiry(requestBody);
+        const response = await bookingApi.submitBooking(requestBody);
         console.log("✅ Enquiry API response:", response);
 
         if (
@@ -521,37 +617,44 @@ function NewEnquiry() {
           response?.status === "ok"
         ) {
           toast.success(
-            isEdit
-              ? "Enquiry updated successfully! ✅"
-              : "Enquiry saved successfully! ✅"
+            isEdit ? "Enquiry updated successfully! ✅" : "Enquiry saved successfully! ✅"
           );
 
-          // Clear form
           setFormData({
             attendedBy: "",
             bookingFromDate: dayjs(),
             bookingToDate: dayjs(),
-            partyName: "",
-            companyName: "",
-            functionName: "",
-          });
-          sessionStorage.removeItem("newEnquiryFormData");
 
-          // Go back to enquiry list
+            partyName: "",
+            partyId: "",
+
+            companyName: "",
+            companyId: "",
+
+            functionName: "",
+            functionId: "",
+          });
+
+          setShowOtherAttendedBy(false);
+          setOtherAttendedByValue("");
+
+          sessionStorage.removeItem("newEnquiryFormData");
+          clearDirectSessionKeys(); // ✅ clear party/company/function keys too
+
           navigate("/enquiry-dashboard", { replace: true });
         } else {
-          const msg =
+          toast.error(
             response?.message ||
             response?.error ||
-            "Failed to save enquiry. Please try again.";
-          toast.error(msg);
+            "Failed to save enquiry. Please try again."
+          );
         }
       } catch (error) {
         console.error("❌ Error saving enquiry:", error);
         toast.error("Failed to save enquiry. Please try again.");
       }
     },
-    [formData, validateForm, navigate, editingEnquiryId]
+    [formData, validateForm, navigate, editingEnquiryId, clearDirectSessionKeys]
   );
 
   const handleSaveClick = useCallback(() => {
@@ -571,13 +674,24 @@ function NewEnquiry() {
       attendedBy: "",
       bookingFromDate: dayjs(),
       bookingToDate: dayjs(),
+
       partyName: "",
+      partyId: "",
+
       companyName: "",
+      companyId: "",
+
       functionName: "",
+      functionId: "",
     });
+
+    setShowOtherAttendedBy(false);
+    setOtherAttendedByValue("");
+
     sessionStorage.removeItem("newEnquiryFormData");
+    clearDirectSessionKeys(); // ✅ clear party/company/function keys too
     toast.info("Form has been reset 🔄");
-  }, []);
+  }, [clearDirectSessionKeys]);
 
   // DatePicker props
   const datePickerProps = {
@@ -587,6 +701,7 @@ function NewEnquiry() {
         onKeyDown: handleKeyDown,
         size: "small",
         style: { width: "100%" },
+        error: !dateValidation.isValid,
       },
     },
   };
@@ -620,11 +735,8 @@ function NewEnquiry() {
       <ConfirmBackButton
         title={
           isEditMode
-            ? `Edit Enquiry${
-                editingEnquiry?.QuotationNo
-                  ? ` #${editingEnquiry.QuotationNo}`
-                  : ""
-              }`
+            ? `Edit Enquiry${editingEnquiry?.QuotationNo ? ` #${editingEnquiry.QuotationNo}` : ""
+            }`
             : "Add Enquiry"
         }
         onClick={(e) => {
@@ -639,6 +751,7 @@ function NewEnquiry() {
         onConfirm={() => {
           setOpenConfirm(false);
           sessionStorage.removeItem("newEnquiryFormData");
+          clearDirectSessionKeys(); // ✅ clear party/company/function keys too
           navigate("/enquiry-dashboard");
         }}
         title="Go Back?"
@@ -665,9 +778,9 @@ function NewEnquiry() {
         <div className="new-enquiry-container">
           <div className="enquiry-form-wrapper">
             <form onSubmit={handleSubmit} className="enquiry-form">
-              {/* First Row - 3 Columns on Desktop */}
+              {/* First Row */}
               <div className="form-row">
-                {/* Attended By Section */}
+                {/* Attended By */}
                 <div className="input-group enquiry-input-group">
                   <label className="enquiry-label">Attended By</label>
                   <div className="attended-by-container">
@@ -689,11 +802,7 @@ function NewEnquiry() {
                         </option>
                         {attendees.map((attendee) => (
                           <option
-                            key={
-                              attendee.Userid ||
-                              attendee.id ||
-                              attendee.Name
-                            }
+                            key={attendee.Userid || attendee.id || attendee.Name}
                             value={attendee.Name}
                           >
                             {attendee.Name}
@@ -716,15 +825,10 @@ function NewEnquiry() {
                       type="button"
                       onClick={handleToggleAttendedBy}
                       disabled={loadingAttendees}
-                      className={`toggle-attended-by-btn ${
-                        loadingAttendees ? "disabled" : ""
-                      }`}
+                      className={`toggle-attended-by-btn ${loadingAttendees ? "disabled" : ""
+                        }`}
                     >
-                      {loadingAttendees
-                        ? "..."
-                        : showOtherAttendedBy
-                        ? "LIST"
-                        : "OTHER"}
+                      {loadingAttendees ? "..." : showOtherAttendedBy ? "LIST" : "OTHER"}
                     </button>
                   </div>
                   {loadingAttendees && (
@@ -732,30 +836,38 @@ function NewEnquiry() {
                   )}
                 </div>
 
-                {/* Booking From Section */}
+                {/* Booking From */}
                 <div className="input-group enquiry-input-group">
                   <label className="enquiry-label">Booking From</label>
                   <DatePicker
                     label="Select Date"
                     value={formData.bookingFromDate}
-                    onChange={(v) => handleDateChange("bookingFromDate", v)}
+                    onChange={handleFromDateChange}
                     {...datePickerProps}
                   />
                 </div>
 
-                {/* Booking To Section */}
+                {/* Booking To */}
                 <div className="input-group enquiry-input-group">
                   <label className="enquiry-label">Booking To</label>
                   <DatePicker
                     label="Select Date"
                     value={formData.bookingToDate}
-                    onChange={(v) => handleDateChange("bookingToDate", v)}
+                    onChange={handleToDateChange}
+                    minDate={formData.bookingFromDate}
                     {...datePickerProps}
                   />
+
+                  {!dateValidation.isValid && (
+                    <div className="date-validation-error">
+                      <span className="error-icon">⚠️</span>
+                      <span className="error-message">{dateValidation.error}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Second Row - 3 Columns on Desktop */}
+              {/* Second Row */}
               <div className="form-row">
                 {/* Party Name */}
                 <div className="input-group enquiry-input-group">
@@ -766,13 +878,9 @@ function NewEnquiry() {
                     className="selection-div party-selection"
                   >
                     {formData.partyName ? (
-                      <span className="selected-value">
-                        {formData.partyName}
-                      </span>
+                      <span className="selected-value">{formData.partyName}</span>
                     ) : (
-                      <span className="placeholder-text">
-                        Select Party Name
-                      </span>
+                      <span className="placeholder-text">Select Party Name</span>
                     )}
                     <IoSearch className="search-icon" />
                   </div>
@@ -787,13 +895,9 @@ function NewEnquiry() {
                     className="selection-div company-selection"
                   >
                     {formData.companyName ? (
-                      <span className="selected-value">
-                        {formData.companyName}
-                      </span>
+                      <span className="selected-value">{formData.companyName}</span>
                     ) : (
-                      <span className="placeholder-text">
-                        Select Company Name
-                      </span>
+                      <span className="placeholder-text">Select Company Name</span>
                     )}
                     <IoSearch className="search-icon" />
                   </div>
@@ -808,13 +912,9 @@ function NewEnquiry() {
                     className="selection-div function-selection"
                   >
                     {formData.functionName ? (
-                      <span className="selected-value">
-                        {formData.functionName}
-                      </span>
+                      <span className="selected-value">{formData.functionName}</span>
                     ) : (
-                      <span className="placeholder-text">
-                        Select Function Name
-                      </span>
+                      <span className="placeholder-text">Select Function Name</span>
                     )}
                     <IoSearch className="search-icon" />
                   </div>
@@ -846,6 +946,7 @@ function NewEnquiry() {
         </div>
       </LocalizationProvider>
 
+      {/* ✅ Your existing styles remain unchanged */}
       <style>{`
         .new-enquiry-container {
           padding: 20px 16px;
@@ -889,7 +990,6 @@ function NewEnquiry() {
           margin-bottom: 4px;
         }
 
-        /* Attended By Styles */
         .attended-by-container {
           display: flex;
           gap: 8px;
@@ -935,7 +1035,6 @@ function NewEnquiry() {
           cursor: not-allowed;
         }
 
-        /* Selection Div Styles */
         .selection-div {
           padding: 12px 16px;
           border: 2px solid #e2e8f0;
@@ -976,17 +1075,6 @@ function NewEnquiry() {
           color: #3b82f6;
         }
 
-        /* Date Picker Styles */
-        .input-group :global(.MuiOutlinedInput-root) {
-          border-radius: 12px;
-        }
-
-        .input-group :global(.MuiOutlinedInput-input) {
-          padding: 12px 14px;
-          font-size: 14px;
-        }
-
-        /* Action Buttons */
         .enquiry-action-buttons {
           display: flex;
           gap: 16px;
@@ -1036,35 +1124,35 @@ function NewEnquiry() {
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
-        .save-icon, .reset-icon {
-          font-size: 16px;
-        }
-
         .loading-text {
           font-size: 12px;
           color: #6b7280;
           margin-top: 4px;
         }
 
-        /* Tablet Styles (768px - 1024px) */
+        /* ✅ Date Validation Error (like BillList) */
+        .date-validation-error {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 12px;
+          background: #fef2f2;
+          border: 1px solid #fecaca;
+          border-radius: 8px;
+          color: #dc2626;
+          font-size: 13px;
+          margin-top: 8px;
+        }
+
+        .error-icon { font-size: 16px; }
+        .error-message { font-weight: 600; }
+
+        /* Tablet */
         @media (max-width: 1024px) {
-          .new-enquiry-container {
-            padding: 16px 12px;
-          }
-
-          .enquiry-form-wrapper {
-            padding: 24px;
-            border-radius: 16px;
-          }
-
-          .form-row {
-            gap: 20px;
-          }
-
-          .enquiry-action-buttons {
-            gap: 12px;
-          }
-
+          .new-enquiry-container { padding: 16px 12px; }
+          .enquiry-form-wrapper { padding: 24px; border-radius: 16px; }
+          .form-row { gap: 20px; }
+          .enquiry-action-buttons { gap: 12px; }
           .save-enquiry-btn, .reset-enquiry-btn {
             padding: 12px 24px;
             min-width: 140px;
@@ -1072,98 +1160,38 @@ function NewEnquiry() {
           }
         }
 
-        /* Mobile Styles (Below 768px) */
+        /* Mobile */
         @media (max-width: 768px) {
-          .new-enquiry-container {
-            padding: 12px;
-          }
-
-          .enquiry-form-wrapper {
-            padding: 20px;
-            border-radius: 12px;
-          }
-
-          .enquiry-form {
-            gap: 20px;
-            flex-direction: column;
-            width: 100%;
-            max-width: 400px;
-            margin: 0 auto;
-          }
-
-          .form-row {
-            grid-template-columns: 1fr;
-            gap: 16px;
-          }
-
-          .input-group.enquiry-input-group {
-            width: 100%;
-          }
-
-          .attended-by-container {
-            flex-direction: column;
-            gap: 8px;
-          }
-
-          .toggle-attended-by-btn {
-            width: 100%;
-            padding: 10px 16px;
-          }
-
+          .new-enquiry-container { padding: 12px; }
+          .enquiry-form-wrapper { padding: 20px; border-radius: 12px; }
+          .enquiry-form { gap: 20px; max-width: 400px; margin: 0 auto; }
+          .form-row { grid-template-columns: 1fr; gap: 16px; }
+          .attended-by-container { flex-direction: column; gap: 8px; }
+          .toggle-attended-by-btn { width: 100%; padding: 10px 16px; }
           .enquiry-action-buttons {
             flex-direction: column;
             gap: 12px;
             margin-top: 20px;
             padding-top: 20px;
           }
-
-          .save-enquiry-btn, .reset-enquiry-btn {
-            width: 100%;
-            padding: 14px 20px;
-            min-width: auto;
-          }
-
-          .selection-div {
-            min-height: 44px;
-            padding: 10px 14px;
-          }
+          .save-enquiry-btn, .reset-enquiry-btn { width: 100%; min-width: auto; }
+          .selection-div { min-height: 44px; padding: 10px 14px; }
         }
 
-        /* Small Mobile Styles (Below 480px) */
+        /* Small Mobile */
         @media (max-width: 480px) {
-          .new-enquiry-container {
-            padding: 8px;
-          }
-
-          .enquiry-form-wrapper {
-            padding: 16px;
-            border-radius: 10px;
-          }
-
-          .enquiry-form {
-            gap: 16px;
-          }
-
-          .form-row {
-            gap: 12px;
-          }
-
-          .enquiry-label {
-            font-size: 13px;
-          }
-
+          .new-enquiry-container { padding: 8px; }
+          .enquiry-form-wrapper { padding: 16px; border-radius: 10px; }
+          .enquiry-form { gap: 16px; }
+          .form-row { gap: 12px; }
+          .enquiry-label { font-size: 13px; }
           .enquiry-select, .enquiry-input, .selection-div {
             padding: 10px 12px;
             font-size: 13px;
           }
-
           .save-enquiry-btn, .reset-enquiry-btn {
             padding: 12px 16px;
             font-size: 12px;
-          }
-
-          .save-icon, .reset-icon {
-            font-size: 14px;
           }
         }
       `}</style>

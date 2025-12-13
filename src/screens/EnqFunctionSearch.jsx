@@ -88,29 +88,34 @@ function EnqFunctionSearch() {
   const handleCancel = () => setOpenConfirm(false);
 
   // Handle function selection for enquiry
+  const pick = (obj, keys) =>
+    keys.map((k) => obj?.[k]).find((v) => v !== undefined && v !== null && v !== "");
+
   const handleSelect = (func) => {
-    console.log("✅ Selected function for enquiry:", func);
+    const funcId = pick(func, [
+      "FunctionId", "FuncId", "FuncID", "function_id",
+      "LedgerId", "LedgerID", "id", "ID"
+    ]) || "";
+
+    const funcName = pick(func, [
+      "FunctionName", "FuncName", "LedgerName", "Name", "functionName", "function_name"
+    ]) || "";
 
     const selectedFunction = {
-      LedgerName: func.LedgerName || func.Name || func.functionName || "",
-      Name: func.Name || func.LedgerName || func.functionName || "",
-      functionName: func.functionName || func.LedgerName || func.Name || "",
-      original: func
+      FunctionId: funcId,
+      FuncId: funcId,
+      function_id: funcId,
+      FunctionName: funcName,
+      FuncName: funcName,
+      Name: funcName,
+      LedgerName: funcName,
+      original: func,
     };
 
-    console.log("📤 Sending function data to Enquiry:", selectedFunction);
+    console.log("📤 Sending function to NewEnquiry:", selectedFunction);
 
-    // Save selected function to sessionStorage
-    sessionStorage.setItem("selectedEnquiryFunction", JSON.stringify(selectedFunction));
-
-    // Navigate back to enquiry page with the selected function
-    navigate('/new-enquiry', {
-      state: {
-        selectedFunction: selectedFunction
-      }
-    });
+    navigate("/new-enquiry", { state: { selectedFunction } });
   };
-
 
 
   // Helper function to get function display name

@@ -90,26 +90,36 @@ function EnqCompanySearch() {
     const handleCancel = () => setOpenConfirm(false);
 
     // Handle company selection
-    const handleSelect = (company) => {
-        console.log("✅ Selected company:", company);
+    const pick = (obj, keys) =>
+        keys.map((k) => obj?.[k]).find((v) => v !== undefined && v !== null && v !== "");
 
+    const handleSelect = (company) => {
+        const compId = pick(company, [
+            "CompId", "CompID", "CompanyId", "CompanyID",
+            "LedgerId", "LedgerID", "id", "ID"
+        ]) || "";
+
+        const compName = pick(company, [
+            "CompanyName", "CompName", "LedgerName", "Name", "companyName", "company_name"
+        ]) || "";
+
+        // ✅ Send a clean object containing BOTH name + id
         const selectedCompany = {
-            CompanyName: company.CompanyName || company.Name || company.companyName || company.LedgerName || "",
-            Name: company.Name || company.CompanyName || company.companyName || company.LedgerName || "",
-            companyName: company.companyName || company.CompanyName || company.Name || company.LedgerName || "",
-            LedgerName: company.LedgerName || company.CompanyName || company.Name || company.companyName || "",
-            CompName: company.CompName || company.CompanyName || company.Name || company.companyName || "",
-            original: company
+            CompId: compId,          // ✅ important
+            CompanyId: compId,       // ✅ important (some pages use this)
+            comp_id: compId,         // ✅ optional safety
+            CompanyName: compName,
+            CompName: compName,
+            Name: compName,
+            LedgerName: compName,
+            original: company,
         };
 
-        console.log("📤 Sending company data to NewEnquiry:", selectedCompany);
+        console.log("📤 Sending company to NewEnquiry:", selectedCompany);
 
-        navigate("/new-enquiry", {
-            state: {
-                selectedCompany: selectedCompany
-            }
-        });
+        navigate("/new-enquiry", { state: { selectedCompany } });
     };
+
 
     // Helper function to get company display name
     const getCompanyDisplayName = (company) => {
