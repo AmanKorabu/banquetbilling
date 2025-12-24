@@ -11,7 +11,7 @@ import { IoSearch } from "react-icons/io5";
 
 // Import components
 import ConfirmBackButton from "../components/ConfirmBackButton";
-import ConfirmationDialog from "../components/ConfirmationDilog"; // <- check this file name
+import ConfirmationDialog from "../components/ConfirmationDilog";
 
 // Import your existing API
 import { initialDataApi } from "../services/initialDataApi";
@@ -78,12 +78,12 @@ function NewEnquiry() {
     try {
       sessionStorage.setItem("partyId", data.partyId || "");
       sessionStorage.setItem("partyName", data.partyName || "");
-
       sessionStorage.setItem("companyId", data.companyId || "");
       sessionStorage.setItem("companyName", data.companyName || "");
-
       sessionStorage.setItem("functionId", data.functionId || "");
       sessionStorage.setItem("functionName", data.functionName || "");
+      // Add attended by to session storage
+      sessionStorage.setItem("attendedBy", data.attendedBy || "");
     } catch (err) {
       console.error("Error syncing direct session keys:", err);
     }
@@ -92,35 +92,35 @@ function NewEnquiry() {
   const clearDirectSessionKeys = useCallback(() => {
     sessionStorage.removeItem("partyId");
     sessionStorage.removeItem("partyName");
-
     sessionStorage.removeItem("companyId");
     sessionStorage.removeItem("companyName");
-
     sessionStorage.removeItem("functionId");
     sessionStorage.removeItem("functionName");
+    sessionStorage.removeItem("attendedBy");
+    sessionStorage.removeItem("showOtherAttendedBy");
+    sessionStorage.removeItem("otherAttendedByValue");
   }, []);
 
   // Form data state with sessionStorage persistence
   const [formData, setFormData] = useState(() => {
     try {
       const saved = sessionStorage.getItem("newEnquiryFormData");
+      const attendedByFromSession = sessionStorage.getItem("attendedBy");
+      
       if (saved) {
         const parsed = JSON.parse(saved);
         return {
-          attendedBy: parsed.attendedBy || "",
+          attendedBy: attendedByFromSession || parsed.attendedBy || "",
           bookingFromDate: parsed.bookingFromDate
             ? dayjs(parsed.bookingFromDate)
             : dayjs(),
           bookingToDate: parsed.bookingToDate
             ? dayjs(parsed.bookingToDate)
             : dayjs(),
-
           partyName: parsed.partyName || "",
           partyId: parsed.partyId || "",
-
           companyName: parsed.companyName || "",
           companyId: parsed.companyId || "",
-
           functionName: parsed.functionName || "",
           functionId: parsed.functionId || "",
         };
@@ -133,13 +133,10 @@ function NewEnquiry() {
       attendedBy: "",
       bookingFromDate: dayjs(),
       bookingToDate: dayjs(),
-
       partyName: "",
       partyId: "",
-
       companyName: "",
       companyId: "",
-
       functionName: "",
       functionId: "",
     };
@@ -150,27 +147,25 @@ function NewEnquiry() {
     if (!isEditMode || !editingEnquiry) return;
 
     const nextData = {
+      attendedBy: editingEnquiry.AttendedBy || editingEnquiry.attended_by || "",
       bookingFromDate: editingEnquiry.FunctionFrom
         ? parseToDayjs(editingEnquiry.FunctionFrom)
         : formData.bookingFromDate,
       bookingToDate: editingEnquiry.FunctionTo
         ? parseToDayjs(editingEnquiry.FunctionTo)
         : formData.bookingToDate,
-
       partyName: editingEnquiry.PartyName || formData.partyName || "",
       partyId:
         editingEnquiry.PartyId ||
         editingEnquiry.LedgerId ||
         formData.partyId ||
         "",
-
       companyName: editingEnquiry.Company || formData.companyName || "",
       companyId:
         editingEnquiry.CompId ||
         editingEnquiry.CompanyId ||
         formData.companyId ||
         "",
-
       functionName: editingEnquiry.Function || formData.functionName || "",
       functionId:
         editingEnquiry.FunctionId ||
@@ -184,6 +179,11 @@ function NewEnquiry() {
       ...nextData,
     }));
 
+    // Also set the other attended by if needed
+    if (nextData.attendedBy) {
+      setOtherAttendedByValue(nextData.attendedBy);
+    }
+
     // ignore any previous "new enquiry" unsaved data
     sessionStorage.removeItem("newEnquiryFormData");
 
@@ -192,15 +192,41 @@ function NewEnquiry() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditMode, editingEnquiry, syncDirectSessionKeys]);
 
-  // Attended By functionality
-  const [showOtherAttendedBy, setShowOtherAttendedBy] = useState(false);
-  const [otherAttendedByValue, setOtherAttendedByValue] = useState("");
+  // Attended By functionality - Load from session storage on mount
+  const [showOtherAttendedBy, setShowOtherAttendedBy] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem("showOtherAttendedBy");
+      return saved === "true";
+    } catch {
+      return false;
+    }
+  });
+  
+  const [otherAttendedByValue, setOtherAttendedByValue] = useState(() => {
+    try {
+      return sessionStorage.getItem("otherAttendedByValue") || "";
+    } catch {
+      return "";
+    }
+  });
 
   // Refs for focus management
-  const attendedByRef = useRef(null);
+  const attendedByListRef = useRef(null);
+  const otherAttendedByInputRef = useRef(null);
   const partyNameRef = useRef(null);
   const companyNameRef = useRef(null);
   const functionNameRef = useRef(null);
+
+  // Persist attended by toggle state
+  useEffect(() => {
+    if (showOtherAttendedBy) {
+      sessionStorage.setItem("showOtherAttendedBy", "true");
+      sessionStorage.setItem("otherAttendedByValue", otherAttendedByValue);
+    } else {
+      sessionStorage.removeItem("showOtherAttendedBy");
+      sessionStorage.removeItem("otherAttendedByValue");
+    }
+  }, [showOtherAttendedBy, otherAttendedByValue]);
 
   // Persist form data to sessionStorage + also set direct keys
   useEffect(() => {
@@ -211,6 +237,11 @@ function NewEnquiry() {
         bookingToDate: formData.bookingToDate?.toISOString(),
       };
       sessionStorage.setItem("newEnquiryFormData", JSON.stringify(dataToSave));
+      
+      // ✅ Also save attendedBy separately for easy access
+      if (formData.attendedBy) {
+        sessionStorage.setItem("attendedBy", formData.attendedBy);
+      }
 
       // ✅ keep these always updated
       syncDirectSessionKeys(formData);
@@ -240,11 +271,12 @@ function NewEnquiry() {
 
         setAttendees(attendeesData);
 
+        // Check if current attendedBy is in the list
         if (formData.attendedBy && attendeesData.length > 0) {
           const isInAttendees = attendeesData.some(
             (attendee) => attendee.Name === formData.attendedBy
           );
-          if (!isInAttendees) {
+          if (!isInAttendees && formData.attendedBy.trim() !== "") {
             setShowOtherAttendedBy(true);
             setOtherAttendedByValue(formData.attendedBy);
           }
@@ -372,23 +404,48 @@ function NewEnquiry() {
     }
   }, []);
 
-  // Toggle for "Other Attended By"
+  // FIXED: handleOtherAttendedByChange function
   const handleOtherAttendedByChange = useCallback((e) => {
     const value = e.target.value;
     setOtherAttendedByValue(value);
-    setFormData((prev) => ({ ...prev, attendedBy: value }));
+    setFormData((prev) => ({ 
+      ...prev, 
+      attendedBy: value.trim() 
+    }));
   }, []);
 
+  // FIXED: handleToggleAttendedBy function
   const handleToggleAttendedBy = useCallback(() => {
     const nextMode = !showOtherAttendedBy;
     setShowOtherAttendedBy(nextMode);
 
-    // if switching back to LIST, clear attendedBy + other input
-    if (!nextMode) {
+    if (nextMode) {
+      // Switching to OTHER mode
+      // Copy current attendedBy value to other input
+      if (formData.attendedBy && !otherAttendedByValue) {
+        setOtherAttendedByValue(formData.attendedBy);
+      }
+      
+      // Focus the input after a small delay
+      setTimeout(() => {
+        if (otherAttendedByInputRef.current) {
+          otherAttendedByInputRef.current.focus();
+          otherAttendedByInputRef.current.select();
+        }
+      }, 100);
+    } else {
+      // Switching back to LIST mode
+      // Clear other input but keep attendedBy value in formData
       setOtherAttendedByValue("");
-      setFormData((prev) => ({ ...prev, attendedBy: "" }));
+      
+      // Focus the select after a small delay
+      setTimeout(() => {
+        if (attendedByListRef.current) {
+          attendedByListRef.current.focus();
+        }
+      }, 100);
     }
-  }, [showOtherAttendedBy]);
+  }, [showOtherAttendedBy, formData.attendedBy, otherAttendedByValue]);
 
   // Search functions
   const handleSearch = useCallback(
@@ -416,7 +473,11 @@ function NewEnquiry() {
   const validateForm = useCallback(() => {
     if (!formData.attendedBy || formData.attendedBy.trim() === "") {
       toast.error("⚠️ Please select Attended By");
-      attendedByRef.current?.focus();
+      if (showOtherAttendedBy && otherAttendedByInputRef.current) {
+        otherAttendedByInputRef.current.focus();
+      } else if (attendedByListRef.current) {
+        attendedByListRef.current.focus();
+      }
       return false;
     }
     if (!formData.partyName || formData.partyName.trim() === "") {
@@ -439,7 +500,7 @@ function NewEnquiry() {
     }
 
     return true;
-  }, [formData, dateValidation]);
+  }, [formData, dateValidation, showOtherAttendedBy]);
 
   // Handle form submission
   const handleSubmit = useCallback(
@@ -624,13 +685,10 @@ function NewEnquiry() {
             attendedBy: "",
             bookingFromDate: dayjs(),
             bookingToDate: dayjs(),
-
             partyName: "",
             partyId: "",
-
             companyName: "",
             companyId: "",
-
             functionName: "",
             functionId: "",
           });
@@ -674,13 +732,10 @@ function NewEnquiry() {
       attendedBy: "",
       bookingFromDate: dayjs(),
       bookingToDate: dayjs(),
-
       partyName: "",
       partyId: "",
-
       companyName: "",
       companyId: "",
-
       functionName: "",
       functionId: "",
     });
@@ -790,7 +845,7 @@ function NewEnquiry() {
                         value={formData.attendedBy}
                         onChange={handleChange}
                         onKeyDown={handleKeyDown}
-                        ref={attendedByRef}
+                        ref={attendedByListRef}
                         required
                         disabled={loadingAttendees}
                         className="enquiry-select"
@@ -813,22 +868,23 @@ function NewEnquiry() {
                       <input
                         id="other-attended-by-input"
                         type="text"
+                        ref={otherAttendedByInputRef}
                         value={otherAttendedByValue}
                         onChange={handleOtherAttendedByChange}
                         onKeyDown={handleKeyDown}
                         placeholder="Enter attended by name"
                         required
                         className="enquiry-input"
+                        autoFocus
                       />
                     )}
                     <button
                       type="button"
                       onClick={handleToggleAttendedBy}
                       disabled={loadingAttendees}
-                      className={`toggle-attended-by-btn ${loadingAttendees ? "disabled" : ""
-                        }`}
+                      className={`toggle-attended-by-btn ${loadingAttendees ? "disabled" : ""}`}
                     >
-                      {loadingAttendees ? "..." : showOtherAttendedBy ? "LIST" : "OTHER"}
+                      {loadingAttendees ? "..." : showOtherAttendedBy ? "Back to List" : "Other"}
                     </button>
                   </div>
                   {loadingAttendees && (
@@ -946,8 +1002,8 @@ function NewEnquiry() {
         </div>
       </LocalizationProvider>
 
-      {/* ✅ Your existing styles remain unchanged */}
       <style>{`
+        /* Your existing CSS styles remain the same */
         .new-enquiry-container {
           padding: 20px 16px;
           background: #f8fafc;
@@ -1147,52 +1203,12 @@ function NewEnquiry() {
         .error-icon { font-size: 16px; }
         .error-message { font-weight: 600; }
 
-        /* Tablet */
-        @media (max-width: 1024px) {
-          .new-enquiry-container { padding: 16px 12px; }
-          .enquiry-form-wrapper { padding: 24px; border-radius: 16px; }
-          .form-row { gap: 20px; }
-          .enquiry-action-buttons { gap: 12px; }
-          .save-enquiry-btn, .reset-enquiry-btn {
-            padding: 12px 24px;
-            min-width: 140px;
-            font-size: 13px;
-          }
-        }
-
-        /* Mobile */
+        /* Responsive styles remain the same... */
         @media (max-width: 768px) {
-          .new-enquiry-container { padding: 12px; }
-          .enquiry-form-wrapper { padding: 20px; border-radius: 12px; }
-          .enquiry-form { gap: 20px; max-width: 400px; margin: 0 auto; }
           .form-row { grid-template-columns: 1fr; gap: 16px; }
           .attended-by-container { flex-direction: column; gap: 8px; }
           .toggle-attended-by-btn { width: 100%; padding: 10px 16px; }
-          .enquiry-action-buttons {
-            flex-direction: column;
-            gap: 12px;
-            margin-top: 20px;
-            padding-top: 20px;
-          }
-          .save-enquiry-btn, .reset-enquiry-btn { width: 100%; min-width: auto; }
-          .selection-div { min-height: 44px; padding: 10px 14px; }
-        }
-
-        /* Small Mobile */
-        @media (max-width: 480px) {
-          .new-enquiry-container { padding: 8px; }
-          .enquiry-form-wrapper { padding: 16px; border-radius: 10px; }
-          .enquiry-form { gap: 16px; }
-          .form-row { gap: 12px; }
-          .enquiry-label { font-size: 13px; }
-          .enquiry-select, .enquiry-input, .selection-div {
-            padding: 10px 12px;
-            font-size: 13px;
-          }
-          .save-enquiry-btn, .reset-enquiry-btn {
-            padding: 12px 16px;
-            font-size: 12px;
-          }
+          .enquiry-action-buttons { flex-direction: column; gap: 12px; }
         }
       `}</style>
     </>

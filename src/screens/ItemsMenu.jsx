@@ -24,6 +24,8 @@ function ItemsMenu() {
   const [loadingOther, setLoadingOther] = useState(false);
   const [searchTimeout, setSearchTimeout] = useState(null);
   const [showAllItems, setShowAllItems] = useState(false); // Toggle for showing all items
+  const [enquiryPage, setEnquiryPage] = useState(false);
+
 
   // 🔹 Debug logging
   useEffect(() => {
@@ -193,6 +195,13 @@ function ItemsMenu() {
     }
   }, []);
 
+  // for enquiry 
+  useEffect(() => {
+    const stored = sessionStorage.getItem("fromEnquiry");
+    if (stored === 'true') {
+      setEnquiryPage(true);
+    }
+  }, []);
   // 🔹 Debounced search with cleanup
   useEffect(() => {
     if (searchTimeout) {
@@ -406,12 +415,15 @@ function ItemsMenu() {
     };
 
     console.log('📤 Navigating back with:', bookingData);
-
+    const navState = {
+      ...bookingData,
+      ...(enquiryPage ? { fromEnquiry: true } : {}),
+    };
     navigate("/new-booking", {
-      state: bookingData,
-      replace: true
+      state: navState,
+      replace: true,
     });
-  }, [allSelected, selectedItem, selectedMenus, totalAmount, isEditingMenus, editingIndex, navigate]);
+  }, [allSelected, selectedItem, selectedMenus, totalAmount, isEditingMenus, editingIndex, navigate, enquiryPage]);
 
   // 🔹 Close popup handler
   const handleClosePopup = useCallback(() => {

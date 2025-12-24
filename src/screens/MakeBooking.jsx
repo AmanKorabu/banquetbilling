@@ -3,29 +3,32 @@ import { useNavigate } from 'react-router-dom';
 import { MdLibraryAdd } from "react-icons/md";
 import { TbReportSearch } from "react-icons/tb";
 import { RiDeleteBin6Fill } from "react-icons/ri";
+import { useNotify } from '../context/NotifyProvider'; // Assuming this is your custom hook for notifications
 import useEscapeNavigate from '../hooks/EscapeNavigate';
-
 
 function MakeBooking() {
   const navigate = useNavigate();
-  useEscapeNavigate('/dashboard')
+  const notify = useNotify(); // Hook for notifications
+  useEscapeNavigate('/dashboard'); // Handle navigation when escape is pressed
+
   useEffect(() => {
     // Fixed keyboard shortcut handler
     const handleKeyPress = (event) => {
-      // Check for Shift+N (Shift + N)
+      // Check for keyboard shortcuts
       if (event.key === 'F1') {
         event.preventDefault();
         navigate('/new-booking');
+        notify.success('Navigating to New Booking'); // Success notification
       }
       if (event.key === 'F2') {
         event.preventDefault();
         navigate('/quote-list');
-
+        notify.success('Navigating to Quotes List'); // Success notification
       }
       if (event.key === 'F3') {
         event.preventDefault();
         navigate('/deleted-quotes');
-
+        notify.success('Navigating to Deleted Quotes'); // Success notification
       }
     };
 
@@ -36,7 +39,7 @@ function MakeBooking() {
     return () => {
       window.removeEventListener('keydown', handleKeyPress);
     };
-  }, [navigate]); // Added navigate dependency
+  }, [navigate, notify]); // Ensure the correct values are passed into the effect
 
   const btnContainer = useMemo(() => [
     {
@@ -57,7 +60,7 @@ function MakeBooking() {
     },
     {
       symbol: <RiDeleteBin6Fill className="button-icon" />,
-      title: 'Deleted',
+      title: 'Deleted Quotes',
       url: '/deleted-quotes',
       variant: 'danger',
       gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
@@ -65,11 +68,13 @@ function MakeBooking() {
     }
   ], []);
 
-  const handleButtonClick = useCallback((url) => navigate(url), [navigate]);
+  const handleButtonClick = useCallback((url, title) => {
+    navigate(url);
+    notify.success(`Navigating to ${title}`); // Add success notification for navigation
+  }, [navigate, notify]);
 
   return (
     <>
-
       <div className="container">
         {/* Minimal Background */}
         <div className="minimal-bg">
@@ -83,7 +88,7 @@ function MakeBooking() {
               <div
                 key={index}
                 className={`action-button ${btn.variant}`}
-                onClick={() => handleButtonClick(btn.url)}
+                onClick={() => handleButtonClick(btn.url, btn.title)} // Pass title for success message
                 style={{ '--button-glow': btn.glow }}
               >
                 {/* Background Layer */}
@@ -103,7 +108,6 @@ function MakeBooking() {
 
                   <div className="text-container">
                     <h3 className="button-title">{btn.title}</h3>
-                    <p className="button-description">{btn.description}</p>
                   </div>
 
                   <div className="action-indicator">
@@ -124,20 +128,9 @@ function MakeBooking() {
             ))}
           </div>
         </div>
-
       </div>
 
       <style>{`
-        .container {
-          max-width: 1400px;
-          margin: 0 auto;
-          padding: 0 1rem;
-          width: 100%;
-          box-sizing: border-box;
-          position: relative;
-         
-        }
-
         /* Minimal Background */
         .minimal-bg {
           position: absolute;
@@ -169,13 +162,17 @@ function MakeBooking() {
           z-index: 1;
           margin: 0.5rem 0;
           width: 100%;
+         
         }
 
         .button-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
           gap: 1rem;
+          padding: 5px;
+          align-items: center;
           width: 100%;
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
           max-width: 1000px;
           margin: 0 auto;
         }
@@ -198,7 +195,15 @@ function MakeBooking() {
           display: flex;
           align-items: center;
         }
+          @media screen and (max-width:768px) {
+          .button-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            align-items: center;
+            
+          }
 
+        }
         .button-bg {
           position: absolute;
           top: 0;
@@ -283,17 +288,12 @@ function MakeBooking() {
         }
 
         .button-title {
-          font-size: 1.1rem;
+          font-size: 1.10rem;
           font-weight: 600;
           color: #1f2937;
           line-height: 1.3;
-          /* Remove text truncation */
-          white-space: normal;
-          overflow: visible;
-          text-overflow: unset;
         }
 
-      
         .action-indicator {
           display: flex;
           align-items: center;
@@ -352,18 +352,6 @@ function MakeBooking() {
           height: 65px;
         }
 
-        .action-button.primary:hover .icon-halo {
-          background: #667eea;
-        }
-
-        .action-button.secondary:hover .icon-halo {
-          background: #4facfe;
-        }
-
-        .action-button.danger:hover .icon-halo {
-          background: #f5576c;
-        }
-
         .action-button:hover .action-indicator {
           opacity: 1;
           transform: translateX(0);
@@ -405,270 +393,9 @@ function MakeBooking() {
         .action-button:hover .particle-effect {
           opacity: 1;
         }
-
-        /* Animations */
-        @keyframes slideIn {
-          from { transform: scaleX(0); opacity: 0; }
-          to { transform: scaleX(1); opacity: 1; }
-        }
-
-        @keyframes dotBounce {
-          0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
-          40% { transform: scale(1.1); opacity: 1; }
-        }
-
-        /* ===== ULTRA-RESPONSIVE DESIGN ===== */
-
-        /* Large Desktop (1440px+) */
-        @media (min-width: 1440px) {
-          .button-grid {
-            max-width: 1200px;
-            gap: 2rem;
-          }
-
-          .action-button {
-            padding: 1.5rem 1rem;
-            min-height: 90px;
-          }
-
-          .button-title {
-            font-size: 1.2rem;
-          }
-
-          .button-description {
-            font-size: 0.85rem;
-          }
-        }
-
-        /* Standard Desktop (1025px - 1439px) */
-        @media (min-width: 1025px) {
-          .button-grid {
-            gap: 1.75rem;
-          }
-        }
-
-        /* Tablet Landscape (769px - 1024px) */
-        @media (max-width: 1024px) and (min-width: 769px) {
-          .container {
-            padding: 0 1rem;
-          }
-
-          .button-grid-container {
-            margin: 1rem 0;
-          }
-
-          .button-grid {
-            gap: 1.25rem;
-            max-width: 800px;
-          }
-
-          .action-button {
-            padding: 0.5rem 0.5rem;
-            min-height: 70px;
-            border-radius: 14px;
-          }
-
-          .button-content {
-            gap: 1rem;
-          }
-
-          .icon-wrapper {
-            padding: 0.875rem;
-          }
-
-          .button-title {
-            font-size: 1rem;
-          }
-
-          .button-description {
-            font-size: 0.75rem;
-          }
-        }
-
-        /* Tablet Portrait & Mobile Landscape (481px - 768px) */
-        @media (max-width: 768px) {
-          .container {
-            padding: 0 1rem;
-          }
-
-          .button-grid-container {
-            margin: 1rem 0;
-          }
-
-          .button-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1rem;
-            max-width: 600px;
-          }
-
-          .action-button {
-            padding: 1rem 0.5rem;
-            min-height: 70px;
-            border-radius: 12px;
-          }
-
-          .button-content {
-            gap: 0.875rem;
-          }
-
-          .icon-wrapper {
-            padding: 0.75rem;
-            border-radius: 10px;
-          }
-
-          .button-title {
-            font-size: 0.95rem;
-          }
-
-          .button-description {
-            font-size: 0.7rem;
-          }
-
-          .action-indicator {
-            gap: 0.5rem;
-          }
-
-          .arrow {
-            width: 14px;
-            height: 14px;
-          }
-        }
-
-        /* Mobile Portrait (320px - 480px) */
-        @media (max-width: 480px) {
-          .container {
-            padding: 0 0.75rem;
-          }
-
-          .button-grid-container {
-            margin: 1rem 0;
-          }
-
-          .button-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 0.75rem;
-          }
-
-          /* Make the third button span full width on mobile */
-          .action-button:nth-child(3) {
-            grid-column: 1 / -1;
-            max-width: calc(50% - 0.375rem);
-            margin: 0 auto;
-          }
-
-          .action-button {
-            padding: 1rem 0.5rem;
-            min-height: 60px;
-            border-radius: 10px;
-          }
-
-          .button-content {
-            gap: 0.75rem;
-          }
-
-          .icon-wrapper {
-            padding: 0.625rem;
-            border-radius: 8px;
-          }
-
-          .icon-halo {
-            width: 50px;
-            height: 50px;
-          }
-
-          .action-button:hover .icon-halo {
-            width: 55px;
-            height: 55px;
-          }
-
-          .button-title {
-            font-size: 0.9rem;
-          }
-
-          .button-description {
-            font-size: 0.65rem;
-          }
-
-          .action-indicator {
-            gap: 0.4rem;
-          }
-
-          .indicator-dots span {
-            width: 2px;
-            height: 2px;
-          }
-
-          .arrow {
-            width: 12px;
-            height: 12px;
-          }
-        }
-
-        /* Small Mobile (320px and below) */
-        @media (max-width: 320px) {
-          .container {
-            padding: 0 0.5rem;
-          }
-
-          .button-grid {
-            gap: 0.5rem;
-          }
-
-          .action-button:nth-child(3) {
-            max-width: calc(50% - 0.25rem);
-          }
-
-          .action-button {
-            padding: 1rem 0.5rem;
-            min-height: 70px;
-          }
-
-          .button-content {
-            gap: 0.5rem;
-          }
-
-          .icon-wrapper {
-            padding: 0.5rem;
-          }
-
-          .button-title {
-            font-size: 0.85rem;
-          }
-
-          .button-description {
-            font-size: 0.6rem;
-          }
-        }
-
-        /* Touch Device Optimizations */
-        @media (hover: none) and (pointer: coarse) {
-          .action-button:hover {
-            transform: none;
-          }
-
-          .action-button:active {
-            transform: scale(0.98);
-          }
-
-          .action-button:active .button-bg {
-            opacity: 0.08;
-          }
-        }
-
-        /* Reduced Motion Support */
-        @media (prefers-reduced-motion: reduce) {
-          .button-shine,
-          .particle-effect,
-          .indicator-dots span {
-            animation: none;
-          }
-
-          .action-button {
-            transition: none;
-          }
-        }
+          
+          
       `}</style>
-
     </>
   );
 }

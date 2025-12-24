@@ -1,13 +1,17 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import "@fontsource/poppins";          // Defaults to weight 400
-import "@fontsource/poppins/500.css";  // Medium
-import "@fontsource/poppins/700.css";  // Bold
-import './index.css'
-import App from './App.jsx'
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import "@fontsource/poppins";
+import "@fontsource/poppins/500.css";
+import "@fontsource/poppins/700.css";
+import './index.css';
+import App from './App.jsx';
+import { NotifyProvider } from './context/NotifyProvider.jsx';
+
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
-  </StrictMode>,
-)
+    <NotifyProvider>
+      <App />
+    </NotifyProvider>
+  </StrictMode>
+);

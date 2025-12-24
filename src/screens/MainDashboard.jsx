@@ -6,50 +6,80 @@ import { PiCalendarStar } from "react-icons/pi";
 import { PiWalletLight } from "react-icons/pi";
 import { useNavigate } from 'react-router-dom';
 import { IoNewspaperOutline, IoChevronForward } from "react-icons/io5";
+import CountUp from 'react-countup';
 import Header from './Header';
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { BellIcon } from "lucide-react";
 
 function MainDashboard() {
   const navigate = useNavigate();
+  const [notificationCounts, setNotificationCounts] = useState({
+    todayEvents: 0,
+    upcomingEvents: 0
+  });
+  const [loading, setLoading] = useState(true);
+  const hotel_id = localStorage.getItem('hotel_id')
+  // Fetch notification counts from API
+  useEffect(() => {
+    const fetchNotificationCounts = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(
+          `/banquetapi/get_notification_counts.php?hotel_id=${hotel_id}`
+        );
+        const data = await response.json();
+
+        if (data.result && data.result.length > 0) {
+          const counts = data.result[0];
+          setNotificationCounts({
+            todayEvents: parseInt(counts.today_events) || 0,
+            upcomingEvents: parseInt(counts.next_15_days_events) || 0
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching notification counts:', error);
+        // Set default values on error
+        setNotificationCounts({
+          todayEvents: 0,
+          upcomingEvents: 0
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotificationCounts();
+  }, []);
 
   useEffect(() => {
-    // Fixed keyboard shortcut handler
     const handleKeyPress = (event) => {
-      // Check for Shift+N (Shift + N)
       if (event.key === 'F1') {
         event.preventDefault();
         navigate('/select-dashboard');
       }
-      if ( event.key === 'F2') {
+      if (event.key === 'F2') {
         event.preventDefault();
         navigate('/bill-list');
-
       }
-      if ( event.key === 'F3') {
+      if (event.key === 'F3') {
         event.preventDefault();
         navigate('/calender-view');
-
       }
-      if ( event.key === 'F4') {
+      if (event.key === 'F4') {
         event.preventDefault();
         navigate('/unsettled-bill');
-
       }
       if (event.key === '1') {
         event.preventDefault();
         navigate('/enquiry-dashboard');
-
       }
     };
 
-    // Add event listener
     window.addEventListener('keydown', handleKeyPress);
-
-    // Clean up event listener
     return () => {
       window.removeEventListener('keydown', handleKeyPress);
     };
-  }, [navigate]); // Added navigate dependency
+  }, [navigate]);
 
   const allEvents = [
     {
@@ -100,7 +130,8 @@ function MainDashboard() {
       borderLeft: '4px solid #ffe925ff',
       navigate: '/upcoming-events',
       stats: "Schedule",
-      shortcut: "F5"
+      shortcut: "F5",
+      count: notificationCounts.upcomingEvents
     },
     {
       id: 6,
@@ -109,7 +140,7 @@ function MainDashboard() {
       iconBg: 'linear-gradient(135deg, #91ebe7ff 0%, #fbaac4ff 100%)',
       borderLeft: '4px solid #80e6e1ff',
       amount: 100000,
-      navigate: '/balance-amount',
+      navigate: '/upcoming-events',
       stats: "Available",
       shortcut: null
     },
@@ -125,11 +156,63 @@ function MainDashboard() {
     navigate('/enquiry-dashboard');
   };
 
+  const formatIndianCurrency = (value) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
   return (
     <>
       <Header />
 
-      {/* Compact Enquiry Section with Same Effects */}
+      {/* Today Events Count with SUPER BLINK ANIMATION - Moved to top */}
+      <div className="today-events-header">
+        <div className="today-container">
+          <div className="today-pulse-ring"></div>
+          <div className="today-pulse-ring delay-1"></div>
+          <div className="today-pulse-ring delay-2"></div>
+
+          <span className="today-text">
+            <svg className="today-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2 2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Today's Events
+          </span>
+          <span className="today-count-badge">
+            {loading ? (
+              <span className="loading-dots">
+                <span className="dot">.</span>
+                <span className="dot">.</span>
+                <span className="dot">.</span>
+              </span>
+            ) : (
+              <CountUp
+                start={0}
+                end={notificationCounts.todayEvents}
+                duration={2.5}
+                onEnd={() => {
+                  // Trigger confetti effect when count completes
+                  if (notificationCounts.todayEvents > 0) {
+                    const event = new CustomEvent('todayCountComplete', {
+                      detail: { count: notificationCounts.todayEvents }
+                    });
+                    window.dispatchEvent(event);
+                  }
+                }}
+              />
+            )}
+          </span>
+          <div className="today-sparkle"></div>
+          <div className="today-sparkle delay-1"></div>
+          <div className="today-sparkle delay-2"></div>
+        </div>
+      </div>
+
+      {/* Compact Enquiry Section */}
       <div className="enquiry-section">
         <div className="enquiry-container">
           <div className="enquiry-card" onClick={GoToEnq}>
@@ -189,7 +272,12 @@ function MainDashboard() {
                   <div className="metric-stats">
                     {event.amount ? (
                       <span className="metric-amount">
-                        ₹{event.amount.toLocaleString("en-IN")}
+                        <CountUp
+                          start={event.amount - 1000}
+                          end={event.amount}
+                          duration={1.20}
+                          formattingFn={formatIndianCurrency}
+                        />
                       </span>
                     ) : (
                       <div className="metric-label-container">
@@ -210,6 +298,24 @@ function MainDashboard() {
                     <path d="M5 12h14M12 5l7 7-7 7" />
                   </svg>
                 </div>
+
+                {event.count !== undefined && event.count > 0 && (
+                  <div className="bell-shine">
+                    <div className="bell-icon-container">
+                      <BellIcon size={16} />
+                      <div className="notification-count">
+                        {loading ? (
+                          <span>...</span>
+                        ) : (
+                          <CountUp
+                            duration={2}
+                            end={event.count}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -218,14 +324,316 @@ function MainDashboard() {
 
       <style>{`
   /* =========================================
+    SUPER BLINKING TODAY EVENTS COUNT
+  ========================================= */
+  .today-events-header {
+    position: relative;
+
+    width: 100%;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(5, 150, 105, 0.1) 100%);
+    border-bottom: 1px solid rgba(16, 185, 129, 0.1);
+    margin-bottom: 10px;
+  }
+
+  .today-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+    padding: 12px 24px;
+    border-radius: 50px;
+    box-shadow: 
+      0 10px 25px rgba(16, 185, 129, 0.15),
+      0 0 0 1px rgba(16, 185, 129, 0.2),
+      0 0 30px rgba(16, 185, 129, 0.3);
+    position: relative;
+    overflow: visible;
+    backdrop-filter: blur(10px);
+    border: 2px solid #10b981;
+    transform: translateY(0);
+    animation: float 3s ease-in-out infinite;
+    z-index: 10;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-5px); }
+  }
+
+  .today-text {
+    font-size: 18px;
+    font-weight: 800;
+    color: #047857;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    letter-spacing: 0.5px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .today-icon {
+    width: 22px;
+    height: 22px;
+    color: #10b981;
+    filter: drop-shadow(0 0 5px rgba(16, 185, 129, 0.5));
+  }
+
+  .today-count-badge {
+    background: linear-gradient(135deg, #10b981 0%, #059669 30%, #047857 100%);
+    color: #ffffff;
+    font-size: 28px;
+    font-weight: 900;
+    min-width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    position: relative;
+    animation: super-blink 2s ease-in-out infinite, heartbeat 1.5s ease-in-out infinite;
+    border: 4px solid #ffffff;
+    z-index: 2;
+    box-shadow: 
+      0 0 40px rgba(16, 185, 129, 0.8),
+      0 0 80px rgba(16, 185, 129, 0.6),
+      0 0 120px rgba(16, 185, 129, 0.4),
+      inset 0 0 20px rgba(255, 255, 255, 0.5);
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    font-family: 'Arial Black', 'Segoe UI', sans-serif;
+  }
+
+  /* SUPER BLINK ANIMATION */
+  @keyframes super-blink {
+    0%, 100% {
+      box-shadow: 
+        0 0 40px rgba(16, 185, 129, 0.8),
+        0 0 80px rgba(16, 185, 129, 0.6),
+        0 0 120px rgba(16, 185, 129, 0.4),
+        inset 0 0 20px rgba(255, 255, 255, 0.5);
+      transform: scale(1);
+      background: linear-gradient(135deg, #10b981 0%, #059669 30%, #047857 100%);
+    }
+    25% {
+      box-shadow: 
+        0 0 60px rgba(16, 185, 129, 1),
+        0 0 100px rgba(16, 185, 129, 0.8),
+        0 0 140px rgba(16, 185, 129, 0.6),
+        inset 0 0 30px rgba(255, 255, 255, 0.7);
+      transform: scale(1.1);
+      background: linear-gradient(135deg, #34d399 0%, #10b981 30%, #059669 100%);
+    }
+    50% {
+      box-shadow: 
+        0 0 30px rgba(16, 185, 129, 0.6),
+        0 0 60px rgba(16, 185, 129, 0.4),
+        0 0 90px rgba(16, 185, 129, 0.2),
+        inset 0 0 15px rgba(255, 255, 255, 0.4);
+      transform: scale(0.95);
+      background: linear-gradient(135deg, #059669 0%, #047857 30%, #065f46 100%);
+    }
+    75% {
+      box-shadow: 
+        0 0 50px rgba(16, 185, 129, 0.9),
+        0 0 90px rgba(16, 185, 129, 0.7),
+        0 0 130px rgba(16, 185, 129, 0.5),
+        inset 0 0 25px rgba(255, 255, 255, 0.6);
+      transform: scale(1.05);
+      background: linear-gradient(135deg, #10b981 0%, #059669 30%, #047857 100%);
+    }
+  }
+
+  /* Heartbeat effect */
+  @keyframes heartbeat {
+    0%, 100% { transform: scale(1); }
+    25% { transform: scale(1.08); }
+    50% { transform: scale(1.05); }
+    75% { transform: scale(1.03); }
+  }
+
+  /* Pulsing rings */
+  .today-pulse-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100px;
+    height: 100px;
+    border: 3px solid rgba(16, 185, 129, 0.3);
+    border-radius: 50%;
+    animation: pulse-ring 3s cubic-bezier(0.215, 0.610, 0.355, 1) infinite;
+    z-index: 1;
+  }
+
+  .today-pulse-ring.delay-1 {
+    animation-delay: 0.5s;
+    border-color: rgba(16, 185, 129, 0.2);
+  }
+
+  .today-pulse-ring.delay-2 {
+    animation-delay: 1s;
+    border-color: rgba(16, 185, 129, 0.1);
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      width: 80px;
+      height: 80px;
+      opacity: 1;
+    }
+    100% {
+      width: 150px;
+      height: 150px;
+      opacity: 0;
+    }
+  }
+
+  /* Sparkle effects */
+  .today-sparkle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: #ffffff;
+    border-radius: 50%;
+    filter: blur(1px);
+    animation: sparkle 2s ease-in-out infinite;
+    box-shadow: 0 0 10px #ffffff, 0 0 20px #10b981;
+  }
+
+  .today-sparkle.delay-1 {
+    animation-delay: 0.3s;
+  }
+
+  .today-sparkle.delay-2 {
+    animation-delay: 0.6s;
+  }
+
+  @keyframes sparkle {
+    0%, 100% {
+      opacity: 0;
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: translate(10px, -10px) scale(1.5);
+    }
+  }
+
+  /* Loading dots animation */
+  .loading-dots {
+    display: flex;
+    gap: 4px;
+  }
+
+  .dot {
+    animation: dot-blink 1.4s infinite both;
+    color: #ffffff;
+    font-size: 32px;
+    font-weight: 900;
+  }
+
+  .dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes dot-blink {
+    0%, 100% { opacity: 0.2; }
+    50% { opacity: 1; }
+  }
+
+  /* Responsive design for today count */
+  @media (max-width: 768px) {
+    .today-events-header {
+      padding: 8px 12px;
+    }
+    
+    .today-container {
+      padding: 10px 16px;
+      gap: 12px;
+      border-radius: 30px;
+    }
+    
+    .today-text {
+      font-size: 14px;
+      gap: 6px;
+    }
+    
+    .today-icon {
+      width: 18px;
+      height: 18px;
+    }
+    
+    .today-count-badge {
+      min-width: 50px;
+      height: 50px;
+      font-size: 20px;
+      border-width: 3px;
+    }
+    
+    .today-pulse-ring {
+      width: 70px;
+      height: 70px;
+    }
+  }
+
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .today-container {
+      padding: 12px 20px;
+    }
+    
+    .today-text {
+      font-size: 16px;
+    }
+    
+    .today-count-badge {
+      min-width: 60px;
+      height: 60px;
+      font-size: 24px;
+    }
+  }
+
+  /* =========================================
     COMPACT ENQUIRY SECTION WITH SAME EFFECTS
   ========================================= */
+  .upcoming-event {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: #ff4757;
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+  }
+    .upcoming-event:keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.2);
+      }
+    }
+
   .enquiry-section {
     background: transparent;
     padding: 16px;
     position: relative;
     display: flex;
     justify-content: center;
+    margin-top: 5px;
   }
 
   .enquiry-container {
@@ -241,8 +649,9 @@ function MainDashboard() {
       rgba(236, 72, 153, 0.9) 100%);
     backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 16px;
-    padding: 18px 20px;
+    border-radius: 12px;
+    padding: 5px 20px;
+    padding-bottom:10px;
     cursor: pointer;
     transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     position: relative;
@@ -474,7 +883,7 @@ function MainDashboard() {
   ========================================= */
   .dashboard-container {
     padding: 20px 16px;
-    background: #f8fafc;
+    // background: #f8fafc;
     min-height: calc(100vh - 140px);
   }
 
@@ -757,6 +1166,147 @@ function MainDashboard() {
       display: none !important;
     }
   }
+    /* Notification Badge - Pure CSS (No Tailwind) */
+
+/* Keyframe Animations */
+@keyframes shake {
+  0%, 100% { 
+    transform: rotate(0deg); 
+  }
+  10%, 30%, 50%, 70%, 90% { 
+    transform: rotate(-8deg); 
+  }
+  20%, 40%, 60%, 80% { 
+    transform: rotate(8deg); 
+  }
+}
+
+@keyframes pulse-scale {
+  0%, 100% { 
+    transform: scale(1); 
+  }
+  50% { 
+    transform: scale(1.1); 
+  }
+}
+
+@keyframes bell-ring {
+  0% { 
+    transform: rotate(0deg); 
+  }
+  5% { 
+    transform: rotate(15deg); 
+  }
+  10% { 
+    transform: rotate(-15deg); 
+  }
+  15% { 
+    transform: rotate(12deg); 
+  }
+  20% { 
+    transform: rotate(-12deg); 
+  }
+  25% { 
+    transform: rotate(8deg); 
+  }
+  30% { 
+    transform: rotate(-8deg); 
+  }
+  35% { 
+    transform: rotate(4deg); 
+  }
+  40% { 
+    transform: rotate(-4deg); 
+  }
+  45%, 100% { 
+    transform: rotate(0deg); 
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { 
+    box-shadow: 
+      0 0 10px rgba(251, 191, 36, 0.5), 
+      0 0 20px rgba(251, 191, 36, 0.3), 
+      0 0 30px rgba(251, 191, 36, 0.2);
+  }
+  50% { 
+    box-shadow: 
+      0 0 20px rgba(251, 191, 36, 0.8), 
+      0 0 30px rgba(251, 191, 36, 0.6), 
+      0 0 40px rgba(251, 191, 36, 0.4);
+  }
+}
+
+/* Notification Container */
+.notification-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  animation: shake 0.5s ease-in-out infinite, pulse-scale 1.5s ease-in-out infinite;
+}
+
+/* Inner Wrapper */
+.notification-badge-inner {
+  position: relative;
+}
+
+/* Bell Icon Container */
+.bell-icon-container {
+  background: linear-gradient(135deg, #fffb0dff 0%, #eddf4cff 50%, #e4c34dff 100%);
+  border-radius: 50%;
+  padding: 8px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  position: relative;
+  overflow: visible;
+  border: 2px solid #fef3c7;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: bell-ring 2s ease-in-out infinite, glow-pulse 2s ease-in-out infinite;
+}
+
+/* Bell Icon (SVG) */
+.bell-icon {
+  width: 16px;
+  height: 16px;
+  color: white;
+  filter: drop-shadow(0 10px 8px rgba(0, 0, 0, 0.04)) drop-shadow(0 4px 3px rgba(0, 0, 0, 0.1));
+}
+
+/* Metallic Shine Effect Overlay */
+.bell-shine {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Red Count Badge */
+.notification-count {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background-color: #ef4444;
+  color: white;
+  font-size: 8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: 1px solid white;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+}
+
   `}</style>
     </>
   );

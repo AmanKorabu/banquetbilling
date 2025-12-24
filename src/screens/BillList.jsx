@@ -10,14 +10,11 @@ import {
     FaTrash,
     FaFileInvoice,
     FaPlus,
-    FaFilter,
     FaCalendarAlt,
     FaRupeeSign,
     FaSync,
     FaTimes,
-    FaUser,
     FaBuilding,
-    FaReceipt,
     FaCheckCircle,
     FaClock,
     FaListAlt,
@@ -31,13 +28,13 @@ import useEscapeNavigate from "../hooks/EscapeNavigate";
 
 const BillList = () => {
     useEscapeNavigate('/dashboard')
-    
+
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
     const [bills, setBills] = useState([]);
     const [loading, setLoading] = useState(false);
-    
+
     // Initialize dates from localStorage or use today's date for first visit
     const [fromDate, setFromDate] = useState(() => {
         const savedFromDate = localStorage.getItem('billList_fromDate');
@@ -91,23 +88,37 @@ const BillList = () => {
 
     // Enhanced date change handlers with validation AND state preservation
     const handleFromDateChange = useCallback((newDate) => {
+        // 🔒 SAFETY CHECK
+        if (!newDate || !dayjs(newDate).isValid()) {
+            setDateValidation({
+                isValid: false,
+                error: "Invalid From date"
+            });
+            return;
+        }
+
         setFromDate(newDate);
 
-        // Validate immediately when from date changes
         const validation = validateDateRange(newDate, toDate);
         setDateValidation(validation);
 
-        // If to date is now before from date, adjust to date
         if (!validation.isValid) {
-            const adjustedToDate = newDate;
-            setToDate(adjustedToDate);
+            setToDate(newDate);
         }
     }, [toDate, validateDateRange]);
 
     const handleToDateChange = useCallback((newDate) => {
+        // 🔒 SAFETY CHECK
+        if (!newDate || !dayjs(newDate).isValid()) {
+            setDateValidation({
+                isValid: false,
+                error: "Invalid To date"
+            });
+            return;
+        }
+
         setToDate(newDate);
 
-        // Validate immediately when to date changes
         const validation = validateDateRange(fromDate, newDate);
         setDateValidation(validation);
     }, [fromDate, validateDateRange]);
@@ -445,7 +456,7 @@ const BillList = () => {
                 };
         }
     };
-    
+
     useEffect(() => {
         const handleKeyPress = (event) => {
             // Or use Shift+S for Summary
@@ -838,7 +849,7 @@ const BillList = () => {
                             className="btn btn-view-details"
                         >
                             <FaCalculator />
-                           Summary
+                            Summary
                         </button>
                     </div>
                 </div>
@@ -852,7 +863,8 @@ const BillList = () => {
                                     <label>From Date</label>
                                     <DatePicker
                                         value={fromDate}
-                                        onChange={handleFromDateChange}
+                                        onChange={() => { }}          // ignore partial typing
+                                        onAccept={handleFromDateChange} // only final valid date
                                         format="DD-MM-YYYY"
                                         slotProps={{
                                             textField: {
@@ -860,26 +872,27 @@ const BillList = () => {
                                                 placeholder: "From Date",
                                                 fullWidth: true,
                                                 error: !dateValidation.isValid
-                                            },
+                                            }
                                         }}
                                     />
+
                                 </div>
                                 <div className="date-filter-group">
                                     <label>To Date</label>
                                     <DatePicker
                                         value={toDate}
-                                        onChange={handleToDateChange}
+                                        onChange={() => { }} // ignore partial typing
+                                        onAccept={handleToDateChange}
                                         format="DD-MM-YYYY"
-                                        minDate={fromDate} // This prevents selecting dates before fromDate
+                                        minDate={fromDate}
                                         slotProps={{
                                             textField: {
                                                 size: "small",
-                                                placeholder: "To Date",
-                                                fullWidth: true,
-                                                error: !dateValidation.isValid
-                                            },
+                                                fullWidth: true
+                                            }
                                         }}
                                     />
+
                                 </div>
                                 <div className="date-controls">
                                     <button

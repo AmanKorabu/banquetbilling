@@ -11,7 +11,7 @@ function NewFunction() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
-
+  const [enquiryPage, setEnquiryPage] = useState(false);
   // Ref for state to avoid stale closures in keyboard events
   const stateRefs = useRef({
     openConfirm: false,
@@ -91,11 +91,22 @@ function NewFunction() {
 
   // Back button handlers
   const handleBackClick = useCallback(() => setOpenConfirm(true), []);
-  
+  useEffect(() => {
+    const stored = sessionStorage.getItem("fromEnquiry");
+    if (stored === 'true') {
+      setEnquiryPage(true);
+    }
+  }, []);
   const handleConfirm = useCallback(() => {
     setOpenConfirm(false);
-    navigate('/new-booking');
-  }, [navigate]);
+    navigate('/new-booking',
+      {
+        state: {
+          ...(enquiryPage && { fromEnquiry: true }),
+        },
+      }
+    );
+  }, [navigate, enquiryPage]);
 
   const handleCancel = useCallback(() => setOpenConfirm(false), []);
 
@@ -115,12 +126,13 @@ function NewFunction() {
     // Navigate back to new-booking with both values
     navigate('/new-booking', {
       state: {
+        ...(enquiryPage && { fromEnquiry: true }),
         selectedFunction: func,
         functionId: funcId,     // ✅ added
         functionName: funcName, // already present
       },
     });
-  }, [navigate]);
+  }, [navigate, enquiryPage]);
 
   // Handle adding new function
   const handleAddNew = useCallback(() => {
@@ -132,7 +144,7 @@ function NewFunction() {
   // Handle keyboard events
   const handleKeyDown = useCallback((event) => {
     const currentState = stateRefs.current;
-    
+
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -144,14 +156,14 @@ function NewFunction() {
         // If no dialog open, show confirmation
         setOpenConfirm(true);
       }
-    } 
+    }
     else if (event.key === 'Enter') {
       event.preventDefault();
-      
+
       if (currentState.openConfirm) {
         // If confirmation dialog is open, confirm the action
         handleConfirm();
-      } 
+      }
       else if (currentState.functionsList.length > 0 && !currentState.loading) {
         // If there are functions and Enter is pressed, select the first function
         const firstFunction = currentState.functionsList[0];
@@ -280,7 +292,7 @@ function NewFunction() {
               onClick={handleAddNew}
               style={{ cursor: "pointer", color: "blue" }}
               title="Add New Function (F3)"
-            > 
+            >
               +Add New Function
             </span>
           </div>
@@ -300,7 +312,7 @@ function NewFunction() {
             ❌ {error}
           </div>
         )}
-        
+
         <div className="search-table-container">
           <table className="search-table">
             <thead>
@@ -312,7 +324,7 @@ function NewFunction() {
             </thead>
             <tbody>
               {functionsList.map((func, index) => (
-                <tr 
+                <tr
                   key={func.LedgerId || func.id || index}
                   className={index === 0 ? "first-function-row" : ""}
                 >
@@ -340,22 +352,22 @@ function NewFunction() {
               )}
             </tbody>
           </table>
-          
+
           {/* Keyboard shortcuts help */}
           {functionsList.length > 0 && (
-            <div style={{ 
-              marginTop: '10px', 
-              fontSize: '12px', 
+            <div style={{
+              marginTop: '10px',
+              fontSize: '12px',
               color: '#666',
               textAlign: 'center',
               padding: '5px',
               border: '1px dashed #ccc',
               borderRadius: '4px'
             }}>
-              💡 <strong>Keyboard Shortcuts:</strong> 
-              <kbd>Esc</kbd> Back • 
-              <kbd>Enter</kbd> Select First • 
-              <kbd>F2</kbd> Select First • 
+              💡 <strong>Keyboard Shortcuts:</strong>
+              <kbd>Esc</kbd> Back •
+              <kbd>Enter</kbd> Select First •
+              <kbd>F2</kbd> Select First •
               <kbd>F3</kbd> Add New •
               <kbd>F8</kbd> Focus Search
             </div>

@@ -8,6 +8,7 @@ const api = axios.create({
   timeout: 10000,
 });
 
+
 // Add request interceptor to include hotel_id
 api.interceptors.request.use(
   (config) => {

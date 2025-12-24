@@ -3,29 +3,30 @@ import {
     Calendar,
     DollarSign,
     Filter,
-    Download,
     Eye,
-    Delete,
     AlertCircle,
-    TrendingUp,
     Search,
-    ChevronDown,
-    ChevronUp,
     FileText,
     RefreshCw,
-    MoreVertical,
-    CreditCard,
     X,
     Building,
     CalendarOff,
     AlertTriangle,
     Trash,
-    Edit
+    Edit,
+    SlidersHorizontal,
+    ChevronRight,
+    CheckCircle,
+    Clock,
+    Users,
+    Percent,
+    Hotel,
 } from 'lucide-react';
 import axios from 'axios';
 import { format, parseISO, isValid, isBefore, isAfter, addDays, startOfDay, endOfDay } from 'date-fns';
 import Header from './Header';
 import useEscapeNavigate from '../hooks/EscapeNavigate';
+import { toast } from 'react-toastify';
 
 const UnsettledBill = () => {
     const [bills, setBills] = useState([]);
@@ -33,6 +34,13 @@ const UnsettledBill = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     useEscapeNavigate('/dashboard')
+
+    // Dynamic hotel_id - can be from props, context, or localStorage
+    const [hotelId, setHotelId] = useState(() => {
+        // Try to get from localStorage, URL params, or context
+        return localStorage.getItem('hotel_id'); // Default fallback
+    });
+
     const [filters, setFilters] = useState({
         fromDate: '',
         toDate: '',
@@ -40,14 +48,95 @@ const UnsettledBill = () => {
         searchTerm: '',
         sortBy: 'date',
         sortOrder: 'desc',
-        loadAll: false
+        loadAll: false,
+        venueId: '0',
+        compId: '0',
+        partyId: '0'
     });
+
     const [searchInput, setSearchInput] = useState('');
     const [dateError, setDateError] = useState('');
     const [selectedBill, setSelectedBill] = useState(null);
     const [showBillModal, setShowBillModal] = useState(false);
+    const [showFilters, setShowFilters] = useState(window.innerWidth >= 1024);
+    const [isMobile, setIsMobile] = useState(false);
+    const [hotels, setHotels] = useState([]);
+    const [selectedHotel, setSelectedHotel] = useState(null);
 
-    const API_URL = '/banquetapi/get_unsettled_bill_list_all.php?hotel_id=290&venue_id=0&comp_id=0&party_id=0';
+    // Delete popup state
+    const [deletePopup, setDeletePopup] = useState({
+        isOpen: false,
+        bill: null,
+        reason: "",
+        loading: false
+    });
+
+    // Construct dynamic API URL
+    const getApiUrl = useCallback(() => {
+        const baseUrl = '/banquetapi/get_unsettled_bill_list_all.php';
+        const params = new URLSearchParams({
+            hotel_id: hotelId,
+            venue_id: filters.venueId,
+            comp_id: filters.compId,
+            party_id: filters.partyId
+        });
+        return `${baseUrl}?${params.toString()}`;
+    }, [hotelId, filters.venueId, filters.compId, filters.partyId]);
+
+    // Check mobile view on mount and resize
+    useEffect(() => {
+        const checkMobile = () => {
+            const mobile = window.innerWidth < 1024;
+            setIsMobile(mobile);
+            // Auto-show filters on desktop, hide on mobile
+            setShowFilters(!mobile);
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    // Fetch available hotels (optional - if you have a hotels API)
+    useEffect(() => {
+        fetchHotels();
+    }, []);
+
+    const fetchHotels = async () => {
+        try {
+            // Replace with your actual hotels API endpoint
+            const response = await axios.get('/api/hotels', {
+                headers: { 'Cache-Control': 'no-cache' }
+            });
+            if (response.data && response.data.result) {
+                setHotels(response.data.result);
+                // Set default hotel if not already set
+                if (response.data.result.length > 0 && !hotelId) {
+                    const defaultHotel = response.data.result[0];
+                    setHotelId(defaultHotel.id);
+                    setSelectedHotel(defaultHotel);
+                }
+            }
+        } catch (err) {
+            console.log('Could not fetch hotels list, using default', err);
+        }
+    };
+
+    // Set default dates on mount
+    useEffect(() => {
+        const defaultDates = setDefaultDates();
+        setFilters(prev => ({
+            ...prev,
+            fromDate: defaultDates.fromDate,
+            toDate: defaultDates.toDate
+        }));
+        fetchBills();
+    }, [hotelId]); // Refetch when hotel changes
+
+    // Apply filters when bills or filters change
+    useEffect(() => {
+        applyFilters();
+    }, [bills, filters]);
 
     // Floor function helper
     const floorValue = (value) => {
@@ -61,9 +150,7 @@ const UnsettledBill = () => {
         try {
             const cleanedStr = dateStr.trim();
 
-            // Handle dd-MM-yyyy format (e.g., "27-02-2024 12:00 AM")
             if (cleanedStr.includes('-')) {
-                // Extract date part (before any space)
                 const datePart = cleanedStr.split(' ')[0];
                 const [day, month, year] = datePart.split('-').map(Number);
 
@@ -71,7 +158,6 @@ const UnsettledBill = () => {
                     throw new Error('Invalid date format');
                 }
 
-                // Extract time if available
                 let hour = 0, minute = 0;
                 if (cleanedStr.includes(':')) {
                     const timeMatch = cleanedStr.match(/(\d{1,2}):(\d{2})/);
@@ -79,7 +165,6 @@ const UnsettledBill = () => {
                         hour = parseInt(timeMatch[1]);
                         minute = parseInt(timeMatch[2]);
 
-                        // Handle AM/PM
                         if (cleanedStr.toLowerCase().includes('pm') && hour < 12) {
                             hour += 12;
                         } else if (cleanedStr.toLowerCase().includes('am') && hour === 12) {
@@ -92,7 +177,6 @@ const UnsettledBill = () => {
                 if (isValid(dateObj)) return dateObj;
             }
 
-            // Try ISO format as fallback
             const isoDate = parseISO(cleanedStr);
             if (isValid(isoDate)) return isoDate;
 
@@ -103,7 +187,7 @@ const UnsettledBill = () => {
         }
     }, []);
 
-    // Format date for display in dd-MM-yyyy
+    // Format date for display
     const formatDateDisplay = (date) => {
         try {
             if (!isValid(date)) return 'Invalid Date';
@@ -145,6 +229,8 @@ const UnsettledBill = () => {
             const date = new Date(year, month - 1, day);
             return isValid(date) ? format(date, 'yyyy-MM-dd') : '';
         } catch (err) {
+            console.log(err);
+
             return '';
         }
     };
@@ -156,6 +242,7 @@ const UnsettledBill = () => {
             const date = parseISO(dateStr);
             return isValid(date) ? format(date, 'dd-MM-yyyy') : '';
         } catch (err) {
+            console.log(err);
             return '';
         }
     };
@@ -175,7 +262,7 @@ const UnsettledBill = () => {
         return true;
     };
 
-    // Set default dates (last 30 days) in dd-MM-yyyy format
+    // Set default dates (last 30 days)
     const setDefaultDates = () => {
         const today = new Date();
         const thirtyDaysAgo = new Date(today);
@@ -187,29 +274,19 @@ const UnsettledBill = () => {
         };
     };
 
-    useEffect(() => {
-        const defaultDates = setDefaultDates();
-        setFilters(prev => ({
-            ...prev,
-            fromDate: defaultDates.fromDate,
-            toDate: defaultDates.toDate
-        }));
-        fetchBills();
-    }, []);
-
-    useEffect(() => {
-        applyFilters();
-    }, [bills, filters]);
-
     const fetchBills = async () => {
         try {
             setLoading(true);
             setError(null);
 
-            const response = await axios.get(API_URL, {
-                timeout: 10000,
+            const apiUrl = getApiUrl();
+            console.log('Fetching bills from:', apiUrl);
+
+            const response = await axios.get(apiUrl, {
+                timeout: 15000,
                 headers: {
-                    'Cache-Control': 'no-cache'
+                    'Cache-Control': 'no-cache',
+                    'Accept': 'application/json'
                 }
             });
 
@@ -245,8 +322,10 @@ const UnsettledBill = () => {
                 throw new Error('No data received from server');
             }
         } catch (err) {
-            setError(err.response?.data?.message || err.message || 'Failed to fetch bills. Please try again later.');
+            const errorMsg = err.response?.data?.message || err.message || 'Failed to fetch bills. Please try again later.';
+            setError(errorMsg);
             console.error('Error fetching bills:', err);
+            toast.error(errorMsg);
         } finally {
             setLoading(false);
         }
@@ -381,6 +460,7 @@ const UnsettledBill = () => {
     const clearAllFilters = () => {
         const defaultDates = setDefaultDates();
         setFilters({
+            ...filters,
             fromDate: defaultDates.fromDate,
             toDate: defaultDates.toDate,
             status: 'all',
@@ -397,47 +477,112 @@ const UnsettledBill = () => {
         const newLoadAllState = !filters.loadAll;
         handleFilterChange({
             loadAll: newLoadAllState,
-            // Clear date filters when enabling Load All
             ...(newLoadAllState ? { fromDate: '', toDate: '' } : {})
         });
         setDateError('');
     };
-
-    // const handleViewBill = (bill) => {
-    //     setSelectedBill(bill);
-    //     setShowBillModal(true);
-    // };
 
     const closeBillModal = () => {
         setShowBillModal(false);
         setSelectedBill(null);
     };
 
-    const handleSettleBill = async (billId) => {
-        if (window.confirm('Are you sure you want to mark this bill as settled?')) {
-            try {
-                // API call to settle bill
-                const response = await axios.post('/banquetapi/settle_bill.php', {
-                    bill_id: billId
-                });
+    // Delete popup functions
+    const openDeletePopup = (bill) => {
+        setDeletePopup({
+            isOpen: true,
+            bill: bill,
+            reason: "",
+            loading: false
+        });
+    };
 
-                if (response.data.success) {
-                    alert('Bill marked as settled successfully!');
-                    fetchBills(); // Refresh data
-                } else {
-                    alert('Failed to settle bill: ' + response.data.message);
-                }
-            } catch (err) {
-                alert('Error settling bill: ' + err.message);
+    const closeDeletePopup = () => {
+        setDeletePopup({
+            isOpen: false,
+            bill: null,
+            reason: "",
+            loading: false
+        });
+    };
+
+    const handleDeleteConfirm = async () => {
+        const bill = deletePopup.bill;
+        const reason = deletePopup.reason?.trim() || "";
+
+        if (!bill || reason.length < 3) {
+            toast.error("Please provide a reason for deletion (minimum 3 characters)");
+            return;
+        }
+
+        const billId = String(bill.QuotationId);
+        const billNo = bill.QuotationNo;
+
+        // Optimistically remove the bill from UI
+        setBills((prevBills) =>
+            prevBills.filter(
+                (b) => String(b.QuotationId) !== billId
+            )
+        );
+
+        setDeletePopup((prev) => ({ ...prev, loading: true }));
+
+        try {
+            const apiUrl = `/banquetapi/delete_or_active_inv.php?quot_id=${billId}&action=delete&cancel_reason=${encodeURIComponent(
+                reason
+            )}`;
+
+            console.log("Deleting bill with URL:", apiUrl);
+
+            const response = await fetch(apiUrl, {
+                method: "GET",
+            });
+
+            const result = await response.text();
+            console.log("Delete response:", result);
+
+            if (!response.ok) {
+                throw new Error("Failed to delete bill");
             }
+
+            toast.success(`Bill #${billNo} deleted successfully!`);
+
+            closeDeletePopup();
+            fetchBills();
+        } catch (err) {
+            console.error("Delete error:", err);
+            toast.error("Failed to delete bill");
+
+            // Rollback
+            setBills((prevBills) => {
+                const alreadyThere = prevBills.some(
+                    (b) => String(b.QuotationId) === billId
+                );
+                if (alreadyThere) return prevBills;
+                return [...prevBills, bill];
+            });
+
+            setDeletePopup((prev) => ({ ...prev, loading: false }));
         }
     };
 
-    const handleDownloadInvoice = (bill) => {
-        // Generate download URL
-        const downloadUrl = `/banquetapi/download_invoice.php?invoice_id=${bill.QuotationId}`;
-        window.open(downloadUrl, '_blank');
-    };
+    // Handle keyboard shortcuts for delete popup
+    useEffect(() => {
+        const handleKeyPress = (event) => {
+            if (deletePopup.isOpen) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleDeleteConfirm();
+                } else if (event.key === 'Escape') {
+                    event.preventDefault();
+                    closeDeletePopup();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyPress);
+        return () => window.removeEventListener('keydown', handleKeyPress);
+    }, [deletePopup]);
 
     const getStatusBadge = (status) => {
         const statusClass = `status-badge ${status.toLowerCase()}`;
@@ -475,6 +620,15 @@ const UnsettledBill = () => {
         return `₹${amount.toLocaleString('en-IN')}`;
     };
 
+    const handleHotelChange = (newHotelId) => {
+        setHotelId(newHotelId);
+        // Save to localStorage for persistence
+        localStorage.setItem('currentHotelId', newHotelId);
+        // Find selected hotel object
+        const hotel = hotels.find(h => h.id === newHotelId);
+        setSelectedHotel(hotel);
+    };
+
     if (loading) {
         return (
             <div className="unsettled-bill">
@@ -508,94 +662,188 @@ const UnsettledBill = () => {
         <>
             <Header />
             <div className="unsettled-bill">
-                <div className="dashboard-container">
-                    {/* Stats Cards - Compact */}
-                    <div className="stats-grid compact">
-                        <div className="stat-card">
-                            <div className="stat-content">
-                                <div className="stat-icon total">
-                                    <FileText size={18} />
+                {/* Delete Confirmation Popup */}
+                {deletePopup.isOpen && (
+                    <div className="delete-popup-overlay">
+                        <div className="delete-popup">
+                            <div className="popup-header">
+                                <h3>Delete Bill</h3>
+                                <button
+                                    onClick={closeDeletePopup}
+                                    className="btn-close"
+                                    disabled={deletePopup.loading}
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="popup-content">
+                                <div className="warning-message">
+                                    <Trash size={18} className="warning-icon" />
+                                    <p>
+                                        You are about to delete bill{" "}
+                                        <strong>{deletePopup.bill?.QuotationNo}</strong> for{" "}
+                                        <strong>{deletePopup.bill?.PartyName}</strong>.
+                                    </p>
+                                    <p className="warning-subtext">
+                                        Amount: {formatCurrency(deletePopup.bill?.BillAmount || 0)} |
+                                        Balance: {formatCurrency(deletePopup.bill?.Balance || 0)}
+                                    </p>
                                 </div>
-                                <div>
-                                    <div className="stat-value">{stats.totalBills}</div>
-                                    <div className="stat-label">Total Bills</div>
+
+                                <div className="reason-input-group">
+                                    <label htmlFor="deleteReason">
+                                        Reason for deletion <span className="required">*</span>
+                                    </label>
+                                    <textarea
+                                        id="deleteReason"
+                                        placeholder="Please provide a reason for deletion (minimum 3 characters)..."
+                                        value={deletePopup.reason}
+                                        onChange={(e) => setDeletePopup(prev => ({ ...prev, reason: e.target.value }))}
+                                        className="reason-textarea"
+                                        rows="4"
+                                        disabled={deletePopup.loading}
+                                        autoFocus
+                                    />
+                                    <div className="character-count">
+                                        {deletePopup.reason.length}/3 characters minimum
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-content">
-                                <div className="stat-icon amount">
-                                    <DollarSign size={18} />
-                                </div>
-                                <div>
-                                    <div className="stat-value">{formatCurrency(stats.totalAmount)}</div>
-                                    <div className="stat-label">Total Amount</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="stat-card highlight">
-                            <div className="stat-content">
-                                <div className="stat-icon balance">
-                                    <AlertCircle size={18} />
-                                </div>
-                                <div>
-                                    <div className="stat-value">{formatCurrency(stats.totalBalance)}</div>
-                                    <div className="stat-label">Outstanding</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-content">
-                                <div className="stat-icon received">
-                                    <TrendingUp size={18} />
-                                </div>
-                                <div>
-                                    <div className="stat-value">{formatCurrency(stats.totalReceived)}</div>
-                                    <div className="stat-label">Received</div>
-                                </div>
+
+                            <div className="popup-actions">
+                                <button
+                                    onClick={closeDeletePopup}
+                                    className="btn btn-cancel"
+                                    disabled={deletePopup.loading}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDeleteConfirm}
+                                    className="btn btn-delete-confirm"
+                                    disabled={deletePopup.reason.length < 3 || deletePopup.loading}
+                                >
+                                    {deletePopup.loading ? (
+                                        <>
+                                            <RefreshCw size={16} className="spinning" />
+                                            Deleting...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Trash size={16} />
+                                            Delete Bill
+                                        </>
+                                    )}
+                                </button>
                             </div>
                         </div>
                     </div>
+                )}
 
-                    {/* Filters Bar - Always Visible */}
-                    <div className="filters-bar always-visible">
-                        <div className="search-container">
-                            <div className="search-input-wrapper">
-                                <input
-                                    type="text"
-                                    placeholder="Search by party, invoice, function..."
-                                    value={searchInput}
-                                    onChange={handleSearchChange}
-                                    className="search-input"
-                                />
-                                {searchInput && (
-                                    <button className="clear-search" onClick={clearSearch}>
-                                        <X size={14} />
+                <div className="dashboard-container">
+                    {/* Hotel Selector - New Component */}
+                    {hotels.length > 0 && (
+                        <div className="hotel-selector">
+                            <Hotel size={16} />
+                            <select
+                                value={hotelId}
+                                onChange={(e) => handleHotelChange(e.target.value)}
+                                className="hotel-select"
+                            >
+                                {hotels.map(hotel => (
+                                    <option key={hotel.id} value={hotel.id}>
+                                        {hotel.name || `Hotel ${hotel.id}`}
+                                    </option>
+                                ))}
+                            </select>
+                            {selectedHotel && (
+                                <span className="hotel-info">
+                                    {selectedHotel.address || `ID: ${selectedHotel.id}`}
+                                </span>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Mobile Filter Toggle Button */}
+                    {isMobile && (
+                        <button
+                            className="mobile-filter-toggle"
+                            onClick={() => setShowFilters(!showFilters)}
+                        >
+                            <SlidersHorizontal size={16} />
+                            {showFilters ? 'Hide Filters' : 'Show Filters'}
+                            <ChevronRight size={16} className={showFilters ? 'flipped' : ''} />
+                        </button>
+                    )}
+
+                    <div className="dashboard-layout">
+                        {/* Filter Panel - Sidebar */}
+                        <div className={`filter-panel ${showFilters ? 'visible' : 'hidden'}`}>
+                            <div className="panel-header">
+                                <h3>
+                                    <SlidersHorizontal size={18} />
+                                    Filters
+                                </h3>
+                                {isMobile && (
+                                    <button
+                                        className="close-filters"
+                                        onClick={() => setShowFilters(false)}
+                                    >
+                                        <X size={16} />
                                     </button>
                                 )}
                             </div>
-                            <Search size={16} className="search-iconn" />
-                            <button className="btn btn-primary" onClick={fetchBills}>
-                                <RefreshCw size={16} />
-                                Refresh
-                            </button>
-                            {/* {hasActiveFilters() && (
-                                <button className="btn btn-clear" onClick={clearAllFilters}>
-                                    Clear All
-                                </button>
-                            )} */}
-                        </div>
 
-                        {/* Expanded Filters - Always Visible */}
-                        <div className="expanded-filters always-visible">
-                            {dateError && (
-                                <div className="date-error">
-                                    <AlertTriangle size={14} />
-                                    <span>{dateError}</span>
+                            <div className="panel-content">
+                                {/* Quick Stats */}
+                                <div className="quick-stats">
+                                    <div className="stat-item">
+                                        <FileText size={14} />
+                                        <span className="stat-label">Total</span>
+                                        <span className="stat-value">{stats.totalBills}</span>
+                                    </div>
+                                    <div className="stat-item">
+                                        <DollarSign size={14} />
+                                        <span className="stat-label">Outstanding</span>
+                                        <span className="stat-value">{formatCurrency(stats.totalBalance)}</span>
+                                    </div>
+                                    <div className="stat-item">
+                                        <Percent size={14} />
+                                        <span className="stat-label">Collected</span>
+                                        <span className="stat-value">{stats.collectionRate}%</span>
+                                    </div>
                                 </div>
-                            )}
-                            <div className="filter-row">
-                                <div className="filter-group">
+
+                                {/* Search */}
+                                <div className="search-section">
+                                    <label className="section-label">
+                                        <Search size={14} />
+                                        Search
+                                    </label>
+                                    <div className="search-input-wrapper">
+                                        <input
+                                            type="text"
+                                            placeholder="Search bills..."
+                                            value={searchInput}
+                                            onChange={handleSearchChange}
+                                            className="search-input"
+                                        />
+                                        {searchInput && (
+                                            <button className="clear-search" onClick={clearSearch}>
+                                                <X size={14} />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Date Filters */}
+                                <div className="filter-section">
+                                    <label className="section-label">
+                                        <Calendar size={14} />
+                                        Date Range
+                                    </label>
+
                                     <div className="load-all-toggle">
                                         <label>
                                             <input
@@ -608,67 +856,85 @@ const UnsettledBill = () => {
                                                 Load All Records
                                             </span>
                                         </label>
-                                        {filters.loadAll && (
-                                            <span className="load-all-badge">All dates included</span>
-                                        )}
+                                    </div>
+
+                                    {!filters.loadAll && (
+                                        <>
+                                            <div className="date-input-group">
+                                                <label>From Date</label>
+                                                <input
+                                                    type="date"
+                                                    value={convertToInputFormat(filters.fromDate)}
+                                                    onChange={(e) => handleFilterChange({
+                                                        fromDate: convertToDisplayFormat(e.target.value)
+                                                    })}
+                                                    className="date-input"
+                                                />
+                                            </div>
+                                            <div className="date-input-group">
+                                                <label>To Date</label>
+                                                <input
+                                                    type="date"
+                                                    value={convertToInputFormat(filters.toDate)}
+                                                    onChange={(e) => handleFilterChange({
+                                                        toDate: convertToDisplayFormat(e.target.value)
+                                                    })}
+                                                    className="date-input"
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {dateError && (
+                                        <div className="date-error">
+                                            <AlertTriangle size={12} />
+                                            <span>{dateError}</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Status Filter */}
+                                <div className="filter-section">
+                                    <label className="section-label">Status</label>
+                                    <div className="status-buttons">
+                                        <button
+                                            className={`status-btn ${filters.status === 'all' ? 'active' : ''}`}
+                                            onClick={() => handleFilterChange({ status: 'all' })}
+                                        >
+                                            All
+                                        </button>
+                                        <button
+                                            className={`status-btn confirmed ${filters.status === 'confirmed' ? 'active' : ''}`}
+                                            onClick={() => handleFilterChange({ status: 'confirmed' })}
+                                        >
+                                            <CheckCircle size={12} />
+                                            Confirmed
+                                        </button>
+                                        <button
+                                            className={`status-btn tentative ${filters.status === 'tentative' ? 'active' : ''}`}
+                                            onClick={() => handleFilterChange({ status: 'tentative' })}
+                                        >
+                                            <Clock size={12} />
+                                            Tentative
+                                        </button>
+                                        <button
+                                            className={`status-btn waitlisted ${filters.status === 'waitlisted' ? 'active' : ''}`}
+                                            onClick={() => handleFilterChange({ status: 'waitlisted' })}
+                                        >
+                                            <Users size={12} />
+                                            Waitlisted
+                                        </button>
                                     </div>
                                 </div>
-                                <div className="filter-group">
-                                    <label><Calendar size={14} /> From Date</label>
-                                    <div className="date-input-wrapper">
-                                        <input
-                                            type="date"
-                                            value={convertToInputFormat(filters.fromDate)}
-                                            
-                                            onChange={(e) => handleFilterChange({
-                                                fromDate: convertToDisplayFormat(e.target.value)
-                                            })}
-                                            disabled={filters.loadAll}
-                                            className={filters.loadAll ? 'disabled' : ''}
-                                            max={convertToInputFormat(filters.toDate) || ''}
-                                            
-                                        />
-                                        {/* {filters.fromDate && !filters.loadAll && (
-                                            <span className="date-display">{filters.fromDate}</span>
-                                        )} */}
-                                    </div>
-                                </div>
-                                <div className="filter-group">
-                                    <label><Calendar size={14} /> To Date</label>
-                                    <div className="date-input-wrapper">
-                                        <input
-                                            type="date"
-                                            value={convertToInputFormat(filters.toDate)}
-                                            onChange={(e) => handleFilterChange({
-                                                toDate: convertToDisplayFormat(e.target.value)
-                                            })}
-                                            disabled={filters.loadAll}
-                                            className={filters.loadAll ? 'disabled' : ''}
-                                            min={convertToInputFormat(filters.fromDate)}
-                                        />
-                                        {/* {filters.toDate && !filters.loadAll && (
-                                            <span className="date-display">{filters.toDate}</span>
-                                        )} */}
-                                    </div>
-                                </div>
-                                <div className="filter-group">
-                                    <label>Status</label>
-                                    <select
-                                        value={filters.status}
-                                        onChange={(e) => handleFilterChange({ status: e.target.value })}
-                                    >
-                                        <option value="all">All Status</option>
-                                        <option value="confirmed">Confirmed</option>
-                                        <option value="tentative">Tentative</option>
-                                        <option value="waitlisted">Waitlisted</option>
-                                    </select>
-                                </div>
-                                <div className="filter-group">
-                                    <label>Sort By</label>
-                                    <div className="sort-controls">
+
+                                {/* Sort Options */}
+                                <div className="filter-section">
+                                    <label className="section-label">Sort By</label>
+                                    <div className="sort-options">
                                         <select
                                             value={filters.sortBy}
                                             onChange={(e) => handleFilterChange({ sortBy: e.target.value })}
+                                            className="sort-select"
                                         >
                                             <option value="date">Date</option>
                                             <option value="amount">Amount</option>
@@ -678,207 +944,250 @@ const UnsettledBill = () => {
                                             <option value="overdue">Overdue Status</option>
                                         </select>
                                         <button
-                                            className="btn-sort-toggle"
+                                            className="sort-order-btn"
                                             onClick={() => handleFilterChange({
                                                 sortOrder: filters.sortOrder === 'asc' ? 'desc' : 'asc'
                                             })}
                                         >
-                                            {filters.sortOrder === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                            {filters.sortOrder === 'asc' ? '↑ Asc' : '↓ Desc'}
                                         </button>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
 
-                    {/* Results Summary */}
-                    <div className="results-summary">
-                        <span className="results-count">
-                            {filteredBills.length} bills found
-                            {filters.loadAll && (
-                                <span className="load-all-indicator">
-                                    <CalendarOff size={12} />
-                                    Showing all records
-                                </span>
-                            )}
-                            {stats.overdueCount > 0 && (
-                                <span className="overdue-indicator">
-                                    <AlertTriangle size={12} />
-                                    {stats.overdueCount} overdue
-                                </span>
-                            )}
-                        </span>
-                        {hasActiveFilters() && (
-                            <span className="active-filters">
-                                <Filter size={12} />
-                                Filters applied
-                            </span>
-                        )}
-                        <div className="summary-totals">
-                            <span className="total-item">Total: {formatCurrency(stats.totalAmount)}</span>
-                            <span className="total-item">Received: {formatCurrency(stats.totalReceived)}</span>
-                            <span className="total-item highlight">Balance: {formatCurrency(stats.totalBalance)}</span>
-                            <span className="total-item collection-rate">
-                                Collection Rate: {stats.collectionRate}%
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Bills Table */}
-                    <div className="table-section">
-                        {filteredBills.length > 0 ? (
-                            <div className="table-responsive">
-                                <table className="bills-table">
-                                    <thead>
-                                        <tr>
-                                            <th width="50"></th>
-                                            <th width="80">Inv No.</th>
-                                            <th width="290">Invoice Date</th>
-                                            <th width="100">Party Name</th>
-                                            <th width="120">Inv Amt</th>
-                                            <th width="60">Discount</th>
-                                            <th width="60">TDS</th>
-                                            <th width="120">Received Amt</th>
-                                            <th width="120">Balance Amt</th>
-                                            <th width="150">Company Name</th>
-                                            <th width="120">Function</th>
-                                            <th width="100">Status</th>
-                                            <th width="120">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredBills.map((bill) => (
-                                            <tr key={bill.QuotationId} className={`bill-row ${bill.Status.toLowerCase()} ${bill.isOverdue ? 'overdue' : ''}`}>
-                                                <td><Edit size={14}/></td>
-                                                <td>
-                                                    <div className="invoice-cell">
-                                                        <div className="invoice-no">{bill.QuotationNo}</div>
-                                                        {bill.isOverdue && (
-                                                            <div className="overdue-badge">Overdue</div>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="date-cell">
-                                                        <div className="date-display">{bill.formattedDateDisplay}</div>
-                                                        <div className="time-display">{bill.formattedTimeDisplay}</div>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="party-cell">
-                                                        <div className="party-names">{bill.PartyName}</div>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="amount-cell total">
-                                                        {formatCurrency(bill.BillAmount)}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="amount-cell discount">
-                                                        {formatCurrency(bill.Discount)}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="amount-cell tds">
-                                                        {formatCurrency(bill.TDS)}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="amount-cell received">
-                                                        {formatCurrency(bill.ReceivedAmount)}
-                                                        <div className="progress-container">
-                                                            <div className="progress-bar">
-                                                                <div
-                                                                    className={`progress-fill ${bill.paymentPercentage >= 100 ? 'complete' : bill.paymentPercentage >= 50 ? 'partial' : 'low'}`}
-                                                                    style={{ width: `${Math.min(bill.paymentPercentage, 100)}%` }}
-                                                                ></div>
-                                                            </div>
-                                                            <span className="progress-text">{bill.paymentPercentage}%</span>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="amount-cell balance highlight">
-                                                        {formatCurrency(bill.Balance)}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="company-cell">
-                                                        <Building size={12} />
-                                                        <span>{bill.BillingCompany}</span>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="function-cell">
-                                                        {bill.FunctionName || 'N/A'}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="status-cell">
-                                                        {getStatusBadge(bill.Status)}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div className="actions-cell">
-                                                        <button
-                                                            className="btn-action view"
-                                                            // onClick={() => handleViewBill(bill)}
-                                                            title="View Details"
-                                                        >
-                                                            <Trash color='red' size={14} />
-                                                        </button>
-
-
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        ) : (
-                            <div className="empty-state">
-                                <FileText size={48} />
-                                <h3>No unsettled bills found</h3>
-                                <p>Try adjusting your filters or search criteria</p>
-                                {hasActiveFilters() && (
-                                    <button className="btn btn-primary" onClick={clearAllFilters}>
-                                        Clear all filters
+                                {/* Action Buttons */}
+                                <div className="filter-actions">
+                                    <button
+                                        className="btn btn-primary apply-btn"
+                                        onClick={applyFilters}
+                                    >
+                                        <Filter size={14} />
+                                        Apply Filters
                                     </button>
+                                    {hasActiveFilters() && (
+                                        <button
+                                            className="btn btn-secondary clear-btn"
+                                            onClick={clearAllFilters}
+                                        >
+                                            <X size={14} />
+                                            Clear All
+                                        </button>
+                                    )}
+                                    <button
+                                        className="btn btn-refresh"
+                                        onClick={fetchBills}
+                                    >
+                                        <RefreshCw size={14} />
+                                        Refresh
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Main Content Area */}
+                        <div className="main-content">
+                            {/* Header Bar */}
+                            <div className="content-header">
+                                <div className="header-left">
+                                    <h2>Unsettled Bills</h2>
+                                    <span className="results-badge">
+                                        {filteredBills.length} bills
+                                        {stats.overdueCount > 0 && (
+                                            <span className="overdue-count">
+                                                <AlertTriangle size={12} />
+                                                {stats.overdueCount} overdue
+                                            </span>
+                                        )}
+                                    </span>
+                                </div>
+                                <div className="header-right">
+                                    <div className="header-stats">
+                                        <div className="header-stat">
+                                            <span className="stat-label">Total Amount</span>
+                                            <span className="stat-value">{formatCurrency(stats.totalAmount)}</span>
+                                        </div>
+                                        <div className="header-stat highlight">
+                                            <span className="stat-label">Outstanding</span>
+                                            <span className="stat-value">{formatCurrency(stats.totalBalance)}</span>
+                                        </div>
+                                        <div className="header-stat">
+                                            <span className="stat-label">Collection Rate</span>
+                                            <span className="stat-value">{stats.collectionRate}%</span>
+                                        </div>
+                                    </div>
+                                    {!isMobile && (
+                                        <button
+                                            className="btn btn-icon"
+                                            onClick={() => setShowFilters(!showFilters)}
+                                            title={showFilters ? "Hide Filters" : "Show Filters"}
+                                        >
+                                            <SlidersHorizontal size={16} />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Bills Table */}
+                            <div className="table-container">
+                                {filteredBills.length > 0 ? (
+                                    <div className="table-responsive">
+                                        <table className="bills-table">
+                                            <thead>
+                                                <tr>
+                                                    <th width="50"></th>
+                                                    <th width="80">Inv No.</th>
+                                                    <th width="100">Invoice Date</th>
+                                                    <th width="120">Party Name</th>
+                                                    <th width="100">Inv Amt</th>
+                                                    <th width="80">Discount</th>
+                                                    <th width="80">TDS</th>
+                                                    <th width="120">Received Amt</th>
+                                                    <th width="120">Balance Amt</th>
+                                                    <th width="100">Status</th>
+                                                    <th width="80">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {filteredBills.map((bill) => (
+                                                    <tr key={bill.QuotationId} className={`bill-row ${bill.Status.toLowerCase()} ${bill.isOverdue ? 'overdue' : ''}`}>
+                                                        <td>
+                                                            <button className="btn-icon-sm">
+                                                                <Edit size={14} />
+                                                            </button>
+                                                        </td>
+                                                        <td>
+                                                            <div className="invoice-cell">
+                                                                <div className="invoice-no">{bill.QuotationNo}</div>
+                                                                {bill.isOverdue && (
+                                                                    <div className="overdue-badge">Overdue</div>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div className="date-cell">
+                                                                <div className="date-display">{bill.formattedDateDisplay}</div>
+                                                                <div className="time-display">{bill.formattedTimeDisplay}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div className="party-cell">
+                                                                <div className="party-names">{bill.PartyName}</div>
+                                                                {bill.BillingCompany && (
+                                                                    <div className="company-name">
+                                                                        <Building size={10} />
+                                                                        {bill.BillingCompany}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div className="amount-cell total">
+                                                                {formatCurrency(bill.BillAmount)}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div className="amount-cell discount">
+                                                                {formatCurrency(bill.Discount)}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div className="amount-cell tds">
+                                                                {formatCurrency(bill.TDS)}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div className="amount-cell received">
+                                                                {formatCurrency(bill.ReceivedAmount)}
+                                                                <div className="progress-container">
+                                                                    <div className="progress-bar">
+                                                                        <div
+                                                                            className={`progress-fill ${bill.paymentPercentage >= 100 ? 'complete' : bill.paymentPercentage >= 50 ? 'partial' : 'low'}`}
+                                                                            style={{ width: `${Math.min(bill.paymentPercentage, 100)}%` }}
+                                                                        ></div>
+                                                                    </div>
+                                                                    <span className="progress-text">{bill.paymentPercentage}%</span>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div className="amount-cell balance highlight">
+                                                                {formatCurrency(bill.Balance)}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div className="status-cell">
+                                                                {getStatusBadge(bill.Status)}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div className="actions-cell">
+                                                                <button
+                                                                    className="btn-action view"
+                                                                    onClick={() => {
+                                                                        setSelectedBill(bill);
+                                                                        setShowBillModal(true);
+                                                                    }}
+                                                                    title="View Details"
+                                                                >
+                                                                    <Eye size={14} />
+                                                                </button>
+                                                                <button
+                                                                    className="btn-action delete"
+                                                                    onClick={() => openDeletePopup(bill)}
+                                                                    title="Delete Bill"
+                                                                >
+                                                                    <Trash size={14} />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="empty-state">
+                                        <FileText size={48} />
+                                        <h3>No unsettled bills found</h3>
+                                        <p>Try adjusting your filters or search criteria</p>
+                                        {hasActiveFilters() && (
+                                            <button className="btn btn-primary" onClick={clearAllFilters}>
+                                                Clear all filters
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
                             </div>
-                        )}
-                    </div>
 
-                    {/* Footer Summary */}
-                    <div className="footer-summary">
-                        <div className="summary-section">
-                            <h4>Payment Summary</h4>
-                            <div className="summary-grid">
-                                <div className="summary-item">
-                                    <span className="label">Total Invoices:</span>
-                                    <span className="value">{stats.totalBills}</span>
-                                </div>
-                                <div className="summary-item">
-                                    <span className="label">Total Invoice Amount:</span>
-                                    <span className="value">{formatCurrency(stats.totalAmount)}</span>
-                                </div>
-                                <div className="summary-item">
-                                    <span className="label">Total Discount:</span>
-                                    <span className="value">{formatCurrency(stats.totalDiscount)}</span>
-                                </div>
-                                <div className="summary-item">
-                                    <span className="label">Total TDS:</span>
-                                    <span className="value">{formatCurrency(stats.totalTDS)}</span>
-                                </div>
-                                <div className="summary-item">
-                                    <span className="label">Total Received:</span>
-                                    <span className="value received">{formatCurrency(stats.totalReceived)}</span>
-                                </div>
-                                <div className="summary-item highlight">
-                                    <span className="label">Total Balance:</span>
-                                    <span className="value balance">{formatCurrency(stats.totalBalance)}</span>
+                            {/* Footer Summary */}
+                            <div className="footer-summary">
+                                <div className="summary-section">
+                                    <h4>Summary</h4>
+                                    <div className="summary-grid">
+                                        <div className="summary-item">
+                                            <span className="label">Total Invoices:</span>
+                                            <span className="value">{stats.totalBills}</span>
+                                        </div>
+                                        <div className="summary-item">
+                                            <span className="label">Confirmed:</span>
+                                            <span className="value">{stats.confirmedCount}</span>
+                                        </div>
+                                        <div className="summary-item">
+                                            <span className="label">Tentative:</span>
+                                            <span className="value">{stats.tentativeCount}</span>
+                                        </div>
+                                        <div className="summary-item">
+                                            <span className="label">Total Amount:</span>
+                                            <span className="value">{formatCurrency(stats.totalAmount)}</span>
+                                        </div>
+                                        <div className="summary-item">
+                                            <span className="label">Total Received:</span>
+                                            <span className="value received">{formatCurrency(stats.totalReceived)}</span>
+                                        </div>
+                                        <div className="summary-item highlight">
+                                            <span className="label">Total Outstanding:</span>
+                                            <span className="value balance">{formatCurrency(stats.totalBalance)}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -943,14 +1252,6 @@ const UnsettledBill = () => {
                                     </div>
                                 </div>
                                 <div className="modal-actions">
-                                    <button className="btn btn-primary" onClick={() => handleDownloadInvoice(selectedBill)}>
-                                        <Download size={16} />
-                                        Download Invoice
-                                    </button>
-                                    <button className="btn btn-settle" onClick={() => handleSettleBill(selectedBill.QuotationId)}>
-                                        <CreditCard size={16} />
-                                        Settle Bill
-                                    </button>
                                     <button className="btn btn-secondary" onClick={closeBillModal}>
                                         Close
                                     </button>
@@ -961,205 +1262,225 @@ const UnsettledBill = () => {
                 )}
 
                 <style>{`
+                    /* ========== BASE STYLES ========== */
                     .unsettled-bill {
                         min-height: 100vh;
                         background: #f8fafc;
+                        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                     }
 
                     .dashboard-container {
                         max-width: 100%;
                         margin: 0 auto;
-                        padding: 18px;
+                        padding: 20px;
                     }
 
-                    /* Date Error */
-                    .date-error {
+                    /* ========== HOTEL SELECTOR ========== */
+                    .hotel-selector {
                         display: flex;
                         align-items: center;
-                        gap: 6px;
-                        background: #fef2f2;
-                        color: #dc2626;
-                        padding: 8px 12px;
-                        border-radius: 6px;
-                        margin-bottom: 12px;
-                        font-size: 0.875rem;
-                        border: 1px solid #fecaca;
-                    }
-
-                    .date-error svg {
-                        flex-shrink: 0;
-                    }
-
-                    /* Date Input Wrapper */
-                    .date-input-wrapper {
-                        position: relative;
-                        display: flex;
-                        align-items: center;
-                    }
-
-                    .date-input-wrapper input[type="date"] {
-                        padding-right: 100px;
-                        width: 100%;
-                        padding: 6px 10px;
-                        border: 1px solid #e2e8f0;
-                        border-radius: 4px;
-                        font-size: 0.875rem;
+                        gap: 12px;
                         background: white;
-                    }
-
-                    
-
-                    /* Overdue Styles */
-                    .bill-row.overdue {
-                        background-color: #fef2f2 !important;
-                        border-left: 3px solid #dc2626;
-                    }
-
-                    .overdue-badge {
-                        background: #dc2626;
-                        color: white;
-                        font-size: 0.7rem;
-                        padding: 2px 6px;
-                        border-radius: 4px;
-                        margin-top: 4px;
-                        display: inline-block;
-                    }
-
-                    .overdue-indicator {
-                        background: #fef2f2;
-                        color: #dc2626;
-                        padding: 2px 8px;
-                        border-radius: 12px;
-                        font-size: 0.7rem;
-                        font-weight: 500;
-                        margin-left: 8px;
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 4px;
-                        border: 1px solid #fecaca;
-                    }
-
-                    .collection-rate {
-                        color: #059669;
-                        font-weight: 600;
-                        background: #d1fae5;
-                        padding: 2px 8px;
-                        border-radius: 4px;
-                        font-size: 0.75rem;
-                    }
-
-                    /* Filters Always Visible */
-                    .filters-bar.always-visible {
-                        margin-bottom: 16px;
-                        background: white;
+                        padding: 12px 16px;
                         border-radius: 8px;
+                        margin-bottom: 20px;
+                        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+                        border: 1px solid #e2e8f0;
+                    }
+
+                    .hotel-select {
+                        padding: 6px 12px;
+                        border: 1px solid #d1d5db;
+                        border-radius: 6px;
+                        font-size: 0.875rem;
+                        background: white;
+                        min-width: 200px;
+                    }
+
+                    .hotel-info {
+                        font-size: 0.75rem;
+                        color: #6b7280;
+                        margin-left: auto;
+                    }
+
+                    /* ========== MOBILE FILTER TOGGLE ========== */
+                    .mobile-filter-toggle {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        width: 100%;
+                        padding: 12px;
+                        background: white;
+                        border: 1px solid #e2e8f0;
+                        border-radius: 8px;
+                        margin-bottom: 16px;
+                        font-weight: 500;
+                        color: #4f46e5;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    }
+
+                    .mobile-filter-toggle:hover {
+                        background: #f8fafc;
+                        border-color: #4f46e5;
+                    }
+
+                    .mobile-filter-toggle .flipped {
+                        transform: rotate(90deg);
+                    }
+
+                    /* ========== DASHBOARD LAYOUT ========== */
+                    .dashboard-layout {
+                        display: flex;
+                        gap: 20px;
+                        height: calc(100vh - 160px);
+                    }
+
+                    @media (max-width: 1023px) {
+                        .dashboard-layout {
+                            flex-direction: column;
+                            height: auto;
+                        }
+                    }
+
+                    /* ========== FILTER PANEL ========== */
+                    .filter-panel {
+                        width: 320px;
+                        background: white;
+                        border-radius: 12px;
                         border: 1px solid #e2e8f0;
                         overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+                        transition: transform 0.3s ease;
                     }
 
-                    .expanded-filters.always-visible {
-                        padding: 16px;
-                        background: #f8fafc;
-                        border-top: 1px solid #e2e8f0;
+                    @media (max-width: 1023px) {
+                        .filter-panel {
+                            width: 100%;
+                            position: fixed;
+                            top: 0;
+                            left: 0;
+                            right: 0;
+                            bottom: 0;
+                            z-index: 1000;
+                            border-radius: 0;
+                            transform: translateX(-100%);
+                        }
+
+                        .filter-panel.visible {
+                            transform: translateX(0);
+                        }
+
+                        .filter-panel.hidden {
+                            display: none;
+                        }
                     }
 
-                    /* Stats Grid */
-                    .stats-grid.compact {
-                        display: grid;
-                        grid-template-columns: repeat(4, 1fr);
-                        gap: 12px;
-                        margin-bottom: 20px;
+                    .panel-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 16px 20px;
+                        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+                        color: white;
                     }
 
-                    .stat-card {
-                        background: white;
-                        border-radius: 8px;
-                        padding: 12px 16px;
-                        border: 1px solid #e2e8f0;
-                        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-                    }
-
-                    .stat-card.highlight {
-                        border-color: #ef4444;
-                        background: linear-gradient(to bottom right, #fff5f5, white);
-                    }
-
-                    .stat-content {
+                    .panel-header h3 {
+                        margin: 0;
+                        font-size: 1rem;
+                        font-weight: 600;
                         display: flex;
                         align-items: center;
-                        gap: 12px;
+                        gap: 8px;
                     }
 
-                    .stat-icon {
-                        width: 36px;
-                        height: 36px;
-                        border-radius: 8px;
+                    .close-filters {
+                        background: rgba(255, 255, 255, 0.1);
+                        border: none;
+                        color: white;
+                        padding: 6px;
+                        border-radius: 6px;
+                        cursor: pointer;
                         display: flex;
                         align-items: center;
                         justify-content: center;
                     }
 
-                    .stat-icon.total {
-                        background: #e0e7ff;
+                    .panel-content {
+                        padding: 20px;
+                        overflow-y: auto;
+                        flex: 1;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 24px;
+                    }
+
+                    /* Quick Stats */
+                    .quick-stats {
+                        display: grid;
+                        grid-template-columns: repeat(3, 1fr);
+                        gap: 12px;
+                        padding: 12px;
+                        background: #f8fafc;
+                        border-radius: 8px;
+                        border: 1px solid #e2e8f0;
+                    }
+
+                    .stat-item {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        text-align: center;
+                        gap: 4px;
+                    }
+
+                    .stat-item svg {
                         color: #4f46e5;
                     }
 
-                    .stat-icon.amount {
-                        background: #fce7f3;
-                        color: #db2777;
-                    }
-
-                    .stat-icon.balance {
-                        background: #fee2e2;
-                        color: #ef4444;
-                    }
-
-                    .stat-icon.received {
-                        background: #dcfce7;
-                        color: #16a34a;
-                    }
-
-                    .stat-value {
-                        font-size: 1.25rem;
-                        font-weight: 600;
-                        color: #1e293b;
-                        line-height: 1.2;
-                    }
-
                     .stat-label {
-                        font-size: 0.75rem;
-                        color: #64748b;
+                        font-size: 0.7rem;
+                        color: #6b7280;
                         text-transform: uppercase;
                         letter-spacing: 0.05em;
                     }
 
-                    /* Filters */
-                    .search-container {
-                        display: flex;
-                        align-items: center;
-                        padding: 12px 16px;
-                        gap: 12px;
-                        border-bottom: 1px solid #e2e8f0;
+                    .stat-value {
+                        font-size: 0.875rem;
+                        font-weight: 600;
+                        color: #1f2937;
                     }
 
+                    /* Filter Sections */
+                    .section-label {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        font-size: 0.875rem;
+                        font-weight: 600;
+                        color: #374151;
+                        margin-bottom: 12px;
+                    }
+
+                    .search-section,
+                    .filter-section {
+                        background: #f8fafc;
+                        padding: 16px;
+                        border-radius: 8px;
+                        border: 1px solid #e2e8f0;
+                    }
+
+                    /* Search Input */
                     .search-input-wrapper {
-                        flex: 1;
                         position: relative;
-                        display: flex;
-                        align-items: center;
-                    }
-
-                    .search-icon {
-                        position: absolute;
-                        left: 12px;
-                        color: #94a3b8;
-                        z-index: 1;
                     }
 
                     .search-input {
                         width: 100%;
-                        padding: 8px 12px 8px 40px;
-                        border: 1px solid #e2e8f0;
+                        padding: 10px 40px 10px 12px;
+                        border: 1px solid #d1d5db;
                         border-radius: 6px;
                         font-size: 0.875rem;
                         transition: all 0.2s;
@@ -1174,25 +1495,18 @@ const UnsettledBill = () => {
                     .clear-search {
                         position: absolute;
                         right: 12px;
+                        top: 50%;
+                        transform: translateY(-50%);
                         background: none;
                         border: none;
-                        color: #94a3b8;
+                        color: #9ca3af;
                         cursor: pointer;
                         padding: 4px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                    }
-
-                    .clear-search:hover {
-                        color: #64748b;
                     }
 
                     /* Load All Toggle */
                     .load-all-toggle {
-                        display: flex;
-                        flex-direction: column;
-                        gap: 4px;
+                        margin-bottom: 16px;
                     }
 
                     .load-all-toggle label {
@@ -1200,253 +1514,321 @@ const UnsettledBill = () => {
                         align-items: center;
                         gap: 8px;
                         cursor: pointer;
-                        font-size: 0.8rem;
-                        color: #475569;
-                        user-select: none;
-                    }
-
-                    .load-all-toggle input[type="checkbox"] {
-                        width: 16px;
-                        height: 16px;
-                        cursor: pointer;
+                        font-size: 0.875rem;
+                        color: #4b5563;
                     }
 
                     .toggle-label {
                         display: flex;
                         align-items: center;
-                        gap: 4px;
-                        font-weight: 500;
+                        gap: 6px;
                     }
 
-                    .load-all-badge {
-                        background: #dcfce7;
-                        color: #166534;
-                        padding: 2px 8px;
-                        border-radius: 12px;
-                        font-size: 0.7rem;
-                        font-weight: 500;
-                        margin-left: 8px;
-                        display: inline-flex;
+                    /* Date Inputs */
+                    .date-input-group {
+                        margin-bottom: 12px;
+                    }
+
+                    .date-input-group label {
+                        display: block;
+                        margin-bottom: 4px;
+                        font-size: 0.75rem;
+                        color: #6b7280;
+                    }
+
+                    .date-input {
+                        width: 100%;
+                        padding: 8px 12px;
+                        border: 1px solid #d1d5db;
+                        border-radius: 6px;
+                        font-size: 0.875rem;
+                    }
+
+                    .date-error {
+                        display: flex;
                         align-items: center;
-                        gap: 4px;
+                        gap: 6px;
+                        background: #fef2f2;
+                        color: #dc2626;
+                        padding: 8px 12px;
+                        border-radius: 6px;
+                        font-size: 0.75rem;
+                        margin-top: 8px;
                     }
 
-                    .load-all-indicator {
-                        background: #dcfce7;
-                        color: #166534;
-                        padding: 2px 8px;
-                        border-radius: 12px;
-                        font-size: 0.7rem;
-                        font-weight: 500;
-                        margin-left: 8px;
-                        display: inline-flex;
+                    /* Status Buttons */
+                    .status-buttons {
+                        display: grid;
+                        grid-template-columns: repeat(2, 1fr);
+                        gap: 8px;
+                    }
+
+                    .status-btn {
+                        padding: 8px 12px;
+                        border: 1px solid #e5e7eb;
+                        border-radius: 6px;
+                        background: white;
+                        font-size: 0.75rem;
+                        display: flex;
                         align-items: center;
+                        justify-content: center;
                         gap: 4px;
+                        cursor: pointer;
+                        transition: all 0.2s;
                     }
 
-                    /* Buttons */
-                    .btn {
-                        padding: 8px 16px;
+                    .status-btn.active {
+                        border-color: #4f46e5;
+                        background: #4f46e5;
+                        color: white;
+                    }
+
+                    .status-btn.confirmed.active {
+                        border-color: #059669;
+                        background: #059669;
+                    }
+
+                    .status-btn.tentative.active {
+                        border-color: #d97706;
+                        background: #d97706;
+                    }
+
+                    .status-btn.waitlisted.active {
+                        border-color: #7c3aed;
+                        background: #7c3aed;
+                    }
+
+                    /* Sort Options */
+                    .sort-options {
+                        display: flex;
+                        gap: 8px;
+                    }
+
+                    .sort-select {
+                        flex: 1;
+                        padding: 8px 12px;
+                        border: 1px solid #d1d5db;
+                        border-radius: 6px;
+                        font-size: 0.875rem;
+                    }
+
+                    .sort-order-btn {
+                        padding: 8px 12px;
+                        border: 1px solid #d1d5db;
+                        border-radius: 6px;
+                        background: white;
+                        font-size: 0.75rem;
+                        cursor: pointer;
+                        min-width: 70px;
+                    }
+
+                    /* Filter Actions */
+                    .filter-actions {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        margin-top: auto;
+                        padding-top: 20px;
+                        border-top: 1px solid #e5e7eb;
+                    }
+
+                    .apply-btn, .clear-btn, .btn-refresh {
+                        width: 100%;
+                        padding: 10px;
                         border: none;
                         border-radius: 6px;
                         font-size: 0.875rem;
                         font-weight: 500;
                         cursor: pointer;
-                        display: inline-flex;
+                        display: flex;
                         align-items: center;
                         justify-content: center;
-                        gap: 6px;
+                        gap: 8px;
                         transition: all 0.2s;
                     }
 
-                    .btn-primary {
+                    .apply-btn {
                         background: #4f46e5;
                         color: white;
                     }
 
-                    .btn-primary:hover {
+                    .apply-btn:hover {
                         background: #4338ca;
                     }
 
-                    .btn-clear {
-                        background: transparent;
-                        color: #ef4444;
-                        border: 1px solid #fecaca;
+                    .clear-btn {
+                        background: #f3f4f6;
+                        color: #4b5563;
+                        border: 1px solid #d1d5db;
                     }
 
-                    .btn-clear:hover {
-                        background: #fee2e2;
+                    .clear-btn:hover {
+                        background: #e5e7eb;
                     }
 
-                    /* Expanded Filters */
-                    .filter-row {
-                        display: grid;
-                        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    .btn-refresh {
+                        background: #10b981;
+                        color: white;
+                    }
+
+                    .btn-refresh:hover {
+                        background: #059669;
+                    }
+
+                    /* ========== MAIN CONTENT ========== */
+                    .main-content {
+                        flex: 1;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 20px;
+                        min-width: 0; /* For responsive table */
+                    }
+
+                    /* Content Header */
+                    .content-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        background: white;
+                        padding: 16px 20px;
+                        border-radius: 12px;
+                        border: 1px solid #e2e8f0;
+                        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+                    }
+
+                    .header-left {
+                        display: flex;
+                        align-items: center;
+
                         gap: 16px;
                     }
 
-                    .filter-group {
-                        display: flex;
-                        flex-direction: column;
-                        gap: 4px;
+                    .header-left h2 {
+                        margin: 0;
+                        font-size: 1.25rem;
+                        font-weight: 600;
+                        color: #111827;
                     }
 
-                    .filter-group label {
+                    .results-badge {
+                        background: #f3f4f6;
+                        color: #6b7280;
+                        padding: 4px 12px;
+                        border-radius: 20px;
+                        font-size: 0.75rem;
+                        font-weight: 500;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+
+                    .overdue-count {
+                        background: #fef2f2;
+                        color: #dc2626;
+                        padding: 2px 8px;
+                        border-radius: 12px;
+                        margin-left: 4px;
                         display: flex;
                         align-items: center;
                         gap: 4px;
-                        font-size: 0.75rem;
-                        font-weight: 500;
-                        color: #475569;
                     }
 
-                    .filter-group input,
-                    .filter-group select {
-                        padding: 6px 10px;
-                        border: 1px solid #e2e8f0;
-                        border-radius: 4px;
-                        font-size: 0.875rem;
-                        background: white;
-                    }
-
-                    .filter-group input:disabled,
-                    .filter-group input.disabled {
-                        background: #f8fafc;
-                        border-color: #e2e8f0;
-                        color: #94a3b8;
-                        cursor: not-allowed;
-                    }
-
-                    .filter-group input:focus:not(:disabled),
-                    .filter-group select:focus {
-                        outline: none;
-                        border-color: #4f46e5;
-                    }
-
-                    .sort-controls {
+                    .header-right {
                         display: flex;
-                        gap: 4px;
+                        align-items: center;
+                        gap: 20px;
                     }
 
-                    .sort-controls select {
-                        flex: 1;
+                    .header-stats {
+                        display: flex;
+                        gap: 20px;
                     }
 
-                    .btn-sort-toggle {
-                        padding: 6px 8px;
-                        background: #f1f5f9;
-                        border: 1px solid #e2e8f0;
-                        border-radius: 4px;
+                    .header-stat {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-end;
+                    }
+
+                    .header-stat .stat-label {
+                        font-size: 0.75rem;
+                        color: #6b7280;
+                        margin-bottom: 2px;
+                    }
+
+                    .header-stat .stat-value {
+                        font-size: 0.875rem;
+                        font-weight: 600;
+                        color: #111827;
+                    }
+
+                    .header-stat.highlight .stat-value {
+                        color: #dc2626;
+                    }
+
+                    .btn-icon {
+                        background: #f3f4f6;
+                        border: 1px solid #e5e7eb;
+                        border-radius: 6px;
+                        padding: 8px;
                         cursor: pointer;
                         display: flex;
                         align-items: center;
                         justify-content: center;
+                        transition: all 0.2s;
                     }
 
-                    .btn-sort-toggle:hover {
-                        background: #e2e8f0;
+                    .btn-icon:hover {
+                        background: #e5e7eb;
                     }
 
-                    /* Results Summary */
-                    .results-summary {
-                        display: flex;
-                        align-items: center;
-                        justify-content: space-between;
-                        margin-bottom: 12px;
-                        padding: 0 4px;
-                        flex-wrap: wrap;
-                        gap: 12px;
-                    }
-
-                    .results-count {
-                        display: flex;
-                        align-items: center;
-                        gap: 8px;
-                        font-size: 0.875rem;
-                        font-weight: 500;
-                        color: #475569;
-                    }
-
-                    .active-filters {
-                        display: flex;
-                        align-items: center;
-                        gap: 4px;
-                        font-size: 0.75rem;
-                        color: #ef4444;
-                        background: #fee2e2;
-                        padding: 2px 8px;
-                        border-radius: 4px;
-                    }
-
-                    .summary-totals {
-                        display: flex;
-                        gap: 16px;
-                        align-items: center;
-                        flex-wrap: wrap;
-                    }
-
-                    .total-item {
-                        font-size: 0.875rem;
-                        color: #64748b;
-                    }
-
-                    .total-item.highlight {
-                        color: #ef4444;
-                        font-weight: 600;
-                    }
-
-                    /* Table */
-                    .table-section {
+                    /* Table Container */
+                    .table-container {
+                        flex: 1;
                         background: white;
-                        border-radius: 8px;
+                        border-radius: 12px;
                         border: 1px solid #e2e8f0;
-                        overflow: hidden;
-                        margin-bottom: 20px;
+                        // overflow: hidden;
+                        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
                     }
 
                     .table-responsive {
                         overflow-x: auto;
+                        max-height: calc(100vh - 50px);
                     }
 
+                    /* Table Styles */
                     .bills-table {
                         width: 100%;
                         border-collapse: collapse;
-                        font-size: 0.875rem;
+                        font-size: 0.75rem;
                     }
 
                     .bills-table thead {
-                        background: #f8fafc;
-                        border-bottom: 2px solid #e2e8f0;
+                        background: #f9fafb;
+                        position: sticky;
+                        top: 0;
+                        z-index: 10;
                     }
 
                     .bills-table th {
                         padding: 12px 16px;
                         text-align: left;
                         font-weight: 600;
-                        color: #475569;
+                        color: #374151;
+                        border-bottom: 1px solid #e5e7eb;
                         white-space: nowrap;
-                        font-size: 0.8rem;   
+                        font-size: 0.7rem;
                         letter-spacing: 0.05em;
                     }
 
                     .bills-table tbody tr {
-                        border-bottom: 1px solid #f1f5f9;
+                        border-bottom: 1px solid #f3f4f6;
+                        transition: background-color 0.2s;
                     }
 
                     .bills-table tbody tr:hover {
-                        background: #f8fafc;
-                    }
-
-                    .bills-table tbody tr.confirmed {
-                        background-color: rgba(16, 185, 129, 0.05);
-                    }
-
-                    .bills-table tbody tr.tentative {
-                        background-color: rgba(245, 158, 11, 0.05);
-                    }
-
-                    .bills-table tbody tr.waitlisted {
-                        background-color: rgba(139, 92, 246, 0.05);
+                        background: #f9fafb;
                     }
 
                     .bills-table td {
@@ -1455,6 +1837,21 @@ const UnsettledBill = () => {
                     }
 
                     /* Table Cells */
+                    .btn-icon-sm {
+                        background: none;
+                        border: none;
+                        color: #6b7280;
+                        cursor: pointer;
+                        padding: 4px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+
+                    .btn-icon-sm:hover {
+                        color: #4f46e5;
+                    }
+
                     .invoice-cell {
                         display: flex;
                         flex-direction: column;
@@ -1463,8 +1860,16 @@ const UnsettledBill = () => {
 
                     .invoice-no {
                         font-weight: 600;
-                        color: #1e293b;
-                        font-size: 0.875rem;
+                        color: #111827;
+                    }
+
+                    .overdue-badge {
+                        background: #fef2f2;
+                        color: #dc2626;
+                        padding: 1px 6px;
+                        border-radius: 4px;
+                        font-size: 0.65rem;
+                        font-weight: 500;
                     }
 
                     .date-cell {
@@ -1474,72 +1879,75 @@ const UnsettledBill = () => {
                     }
 
                     .date-display {
-                        font-weight: 600;
-                        color: #1e293b;
-                        font-size: 0.8rem;
+                        font-weight: 500;
+                        color: #111827;
                     }
 
                     .time-display {
-                        color: #64748b;
-                        font-size: 0.75rem;
+                        color: #6b7280;
+                        font-size: 0.7rem;
                     }
 
                     .party-cell {
                         display: flex;
                         flex-direction: column;
-                        gap: 2px;
+                        gap: 4px;
                     }
 
                     .party-names {
                         font-weight: 500;
-                        color: #1e293b;
+                        color: #111827;
                         line-height: 1.3;
+                    }
+
+                    .company-name {
+                        display: flex;
+                        align-items: center;
+                        gap: 4px;
+                        color: #6b7280;
+                        font-size: 0.7rem;
                     }
 
                     /* Amount Cells */
                     .amount-cell {
                         font-weight: 600;
-                        font-size: 0.875rem;
+                        font-size: 0.75rem;
                     }
 
                     .amount-cell.total {
-                        color: #1e293b;
+                        color: #111827;
                     }
 
                     .amount-cell.discount {
-                        color: #f59e0b;
+                        color: #d97706;
                     }
 
                     .amount-cell.tds {
-                        color: #8b5cf6;
+                        color: #7c3aed;
                     }
 
                     .amount-cell.received {
-                        color: #16a34a;
+                        color: #059669;
                         display: flex;
                         flex-direction: column;
                         gap: 4px;
                     }
 
-                    .amount-cell.balance {
-                        color: #ef4444;
-                    }
-
-                    .amount-cell.highlight {
-                        color: #ef4444;
+                    .amount-cell.balance.highlight {
+                        color: #dc2626;
                         font-weight: 700;
                     }
 
                     .progress-container {
                         display: flex;
                         align-items: center;
-                        gap: 8px;
+                        gap: 6px;
                     }
 
                     .progress-bar {
                         flex: 1;
                         height: 4px;
-                        background: #e2e8f0;
+                        background: #e5e7eb;
                         border-radius: 2px;
                         overflow: hidden;
                     }
@@ -1562,46 +1970,26 @@ const UnsettledBill = () => {
                     }
 
                     .progress-text {
-                        font-size: 0.7rem;
-                        color: #64748b;
-                        min-width: 24px;
+                        font-size: 0.65rem;
+                        color: #6b7280;
+                        min-width: 20px;
                         text-align: right;
                     }
 
-                    .company-cell {
-                        display: flex;
-                        align-items: center;
-                        gap: 6px;
-                        color: #475569;
-                    }
-
-                    .company-cell svg {
-                        color: #94a3b8;
-                    }
-
-                    .function-cell {
-                        color: #475569;
-                        line-height: 1.4;
-                        max-width: 150px;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                    }
-
-                    /* Status */
+                    /* Status Cell */
                     .status-cell {
                         display: flex;
                         align-items: center;
-                        gap: 6px;
                     }
 
                     .status-badge {
-                        padding: 4px 8px;
+                        padding: 3px 8px;
                         border-radius: 12px;
-                        font-size: 0.7rem;
+                        font-size: 0.65rem;
                         font-weight: 600;
                         text-transform: uppercase;
                         letter-spacing: 0.05em;
-                        min-width: 80px;
+                        min-width: 70px;
                         text-align: center;
                     }
 
@@ -1620,18 +2008,17 @@ const UnsettledBill = () => {
                         color: #5b21b6;
                     }
 
-                    /* Actions */
+                    /* Actions Cell */
                     .actions-cell {
                         display: flex;
                         gap: 4px;
-                        justify-content: center;
                     }
 
                     .btn-action {
                         width: 28px;
                         height: 28px;
                         border: none;
-                        border-radius: 4px;
+                        border-radius: 6px;
                         cursor: pointer;
                         display: flex;
                         align-items: center;
@@ -1640,53 +2027,36 @@ const UnsettledBill = () => {
                     }
 
                     .btn-action.view {
-                        background: #dbeafe;
-                        color: #2563eb;
+                        background: #e0e7ff;
+                        color: #4f46e5;
                     }
 
                     .btn-action.view:hover {
-                        background: #bfdbfe;
+                        background: #c7d2fe;
                     }
 
-                    .btn-action.settle {
-                        background: #dcfce7;
-                        color: #16a34a;
+                    .btn-action.delete {
+                        background: #fee2e2;
+                        color: #dc2626;
                     }
 
-                    .btn-action.settle:hover {
-                        background: #bbf7d0;
-                    }
-
-                    .btn-action.download {
-                        background: #fef3c7;
-                        color: #d97706;
-                    }
-
-                    .btn-action.download:hover {
-                        background: #fde68a;
-                    }
-
-                    .btn-action.more {
-                        background: #f1f5f9;
-                        color: #475569;
-                    }
-
-                    .btn-action.more:hover {
-                        background: #e2e8f0;
+                    .btn-action.delete:hover {
+                        background: #fecaca;
                     }
 
                     /* Footer Summary */
                     .footer-summary {
                         background: white;
-                        border-radius: 8px;
+                        border-radius: 12px;
                         padding: 16px;
                         border: 1px solid #e2e8f0;
+                        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
                     }
 
                     .summary-section h4 {
                         margin: 0 0 12px 0;
-                        color: #1e293b;
-                        font-size: 0.9rem;
+                        color: #111827;
+                        font-size: 0.875rem;
                         font-weight: 600;
                     }
 
@@ -1701,112 +2071,189 @@ const UnsettledBill = () => {
                         justify-content: space-between;
                         align-items: center;
                         padding: 8px 12px;
-                        background: #f8fafc;
+                        background: #f9fafb;
                         border-radius: 6px;
+                        border: 1px solid #e5e7eb;
                     }
 
                     .summary-item .label {
-                        font-size: 0.8rem;
-                        color: #64748b;
+                        font-size: 0.75rem;
+                        color: #6b7280;
                     }
 
                     .summary-item .value {
-                        font-size: 0.875rem;
+                        font-size: 0.75rem;
                         font-weight: 600;
-                        color: #1e293b;
+                        color: #111827;
                     }
 
                     .summary-item .value.received {
-                        color: #16a34a;
+                        color: #059669;
                     }
 
                     .summary-item .value.balance {
-                        color: #ef4444;
+                        color: #dc2626;
                     }
 
                     .summary-item.highlight {
-                        background: #fff5f5;
-                        border: 1px solid #fecaca;
+                        background: #fef2f2;
+                        border-color: #fecaca;
                     }
 
                     /* Empty State */
                     .empty-state {
-                        padding: 40px 20px;
+                        padding: 60px 20px;
                         text-align: center;
-                        color: #64748b;
+                        color: #6b7280;
                     }
 
                     .empty-state svg {
-                        color: #cbd5e1;
-                        margin-bottom: 12px;
+                        color: #d1d5db;
+                        margin-bottom: 16px;
                     }
 
                     .empty-state h3 {
-                        color: #475569;
-                        margin-bottom: 4px;
+                        color: #374151;
+                        margin-bottom: 8px;
                         font-size: 1rem;
+                        font-weight: 600;
                     }
 
                     .empty-state p {
                         font-size: 0.875rem;
-                        margin-bottom: 16px;
+                        margin-bottom: 20px;
                     }
 
-                    /* Loading & Error */
-                    .loading-container,
-                    .error-container {
+                    /* Delete Popup Styles (keep from previous implementation) */
+                    .delete-popup-overlay {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background: rgba(0, 0, 0, 0.5);
                         display: flex;
-                        flex-direction: column;
                         align-items: center;
                         justify-content: center;
-                        padding: 60px 20px;
-                        text-align: center;
+                        z-index: 2000;
+                        padding: 20px;
                     }
 
-                    .loading-spinner {
-                        width: 40px;
-                        height: 40px;
-                        border: 3px solid #e2e8f0;
-                        border-top-color: #4f46e5;
-                        border-radius: 50%;
-                        animation: spin 1s linear infinite;
-                        margin-bottom: 12px;
+                    .delete-popup {
+                        background: white;
+                        border-radius: 12px;
+                        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                        width: 100%;
+                        max-width: 500px;
+                        max-height: 90vh;
+                        overflow: hidden;
+                        animation: popup-appear 0.3s ease-out;
                     }
 
-                    @keyframes spin {
-                        to { transform: rotate(360deg); }
+                    @keyframes popup-appear {
+                        from {
+                            opacity: 0;
+                            transform: scale(0.9) translateY(-10px);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: scale(1) translateY(0);
+                        }
                     }
 
-                    .error-container svg {
-                        color: #ef4444;
-                        margin-bottom: 12px;
+                    .popup-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 20px 24px;
+                        border-bottom: 1px solid #e2e8f0;
+                        background: #fef2f2;
                     }
 
-                    .error-container h2 {
-                        color: #1e293b;
-                        margin-bottom: 4px;
-                        font-size: 1.25rem;
+                    .popup-header h3 {
+                        margin: 0;
+                        color: #dc2626;
+                        font-size: 18px;
+                        font-weight: 600;
                     }
 
-                    .error-container p {
-                        color: #64748b;
-                        margin-bottom: 16px;
+                    .btn-close {
+                        background: none;
+                        border: none;
+                        font-size: 16px;
+                        color: #6b7280;
+                        cursor: pointer;
+                        padding: 4px;
+                        border-radius: 4px;
+                        transition: all 0.2s ease;
                     }
 
-                    .retry-button {
-                        padding: 8px 16px;
-                        background: #4f46e5;
+                    .popup-content {
+                        padding: 24px;
+                    }
+
+                    .warning-message {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 12px;
+                        margin-bottom: 20px;
+                        padding: 16px;
+                        background: #fef2f2;
+                        border-radius: 8px;
+                        border-left: 4px solid #dc2626;
+                    }
+
+                    .reason-input-group {
+                        margin-bottom: 8px;
+                    }
+
+                    .reason-textarea {
+                        width: 100%;
+                        padding: 12px;
+                        border: 1px solid #d1d5db;
+                        border-radius: 8px;
+                        font-size: 14px;
+                        font-family: inherit;
+                        resize: vertical;
+                        transition: all 0.3s ease;
+                        background: white;
+                    }
+
+                    .popup-actions {
+                        display: flex;
+                        gap: 12px;
+                        justify-content: flex-end;
+                        padding: 20px 24px;
+                        border-top: 1px solid #e2e8f0;
+                        background: #f8fafc;
+                    }
+
+                    .btn-cancel {
+                        background: #6b7280;
                         color: white;
+                        padding: 10px 20px;
                         border: none;
                         border-radius: 6px;
                         cursor: pointer;
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 6px;
-                        font-size: 0.875rem;
+                        font-weight: 500;
+                        transition: all 0.3s ease;
                     }
 
-                    /* Modal Styles */
+                    .btn-delete-confirm {
+                        background: #dc2626;
+                        color: white;
+                        padding: 10px 20px;
+                        border: none;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 500;
+                        transition: all 0.3s ease;
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+
+                    /* Modal Styles (keep from previous) */
                     .modal-overlay {
                         position: fixed;
                         top: 0;
@@ -1839,199 +2286,162 @@ const UnsettledBill = () => {
                         border-bottom: 1px solid #e2e8f0;
                     }
 
-                    .modal-header h3 {
-                        margin: 0;
-                        color: #1e293b;
-                        font-size: 1.125rem;
-                    }
-
-                    .modal-close {
-                        background: none;
-                        border: none;
-                        color: #64748b;
-                        cursor: pointer;
-                        padding: 4px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        border-radius: 4px;
-                    }
-
-                    .modal-close:hover {
-                        background: #f1f5f9;
-                        color: #475569;
-                    }
-
-                    .modal-body {
-                        padding: 20px;
-                    }
-
                     .bill-details-grid {
                         display: grid;
                         grid-template-columns: repeat(2, 1fr);
                         gap: 12px;
                         margin-bottom: 20px;
+                        padding: 20px;
                     }
 
-                    .detail-item {
+                    /* Loading & Error States */
+                    .loading-container,
+                    .error-container {
                         display: flex;
                         flex-direction: column;
-                        gap: 4px;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 60px 20px;
+                        text-align: center;
                     }
 
-                    .detail-item.amount {
-                        grid-column: span 2;
+                    .loading-spinner {
+                        width: 40px;
+                        height: 40px;
+                        border: 3px solid #e2e8f0;
+                        border-top-color: #4f46e5;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin-bottom: 12px;
                     }
 
-                    .detail-label {
-                        font-size: 0.75rem;
-                        color: #64748b;
-                        font-weight: 500;
+                    .error-container svg {
+                        color: #ef4444;
+                        margin-bottom: 12px;
                     }
 
-                    .detail-value {
-                        font-size: 0.875rem;
-                        color: #1e293b;
-                        font-weight: 500;
-                    }
-
-                    .detail-value.received {
-                        color: #059669;
-                    }
-
-                    .detail-value.balance {
-                        color: #dc2626;
-                        font-weight: 600;
-                    }
-
-                    .modal-actions {
-                        display: flex;
-                        gap: 12px;
-                        justify-content: flex-end;
-                        border-top: 1px solid #e2e8f0;
-                        padding-top: 20px;
-                        margin-top: 20px;
-                    }
-
-                    .btn-settle {
-                        background: #059669;
+                    .retry-button {
+                        padding: 8px 16px;
+                        background: #4f46e5;
                         color: white;
                         border: none;
-                        padding: 8px 16px;
                         border-radius: 6px;
-                        font-size: 0.875rem;
-                        font-weight: 500;
                         cursor: pointer;
                         display: inline-flex;
                         align-items: center;
-                        justify-content: center;
                         gap: 6px;
-                    }
-
-                    .btn-settle:hover {
-                        background: #047857;
-                    }
-
-                    .btn-secondary {
-                        background: #f1f5f9;
-                        color: #475569;
-                        border: 1px solid #e2e8f0;
-                        padding: 8px 16px;
-                        border-radius: 6px;
                         font-size: 0.875rem;
-                        font-weight: 500;
-                        cursor: pointer;
                     }
 
-                    .btn-secondary:hover {
-                        background: #e2e8f0;
-                    }
-
-                    /* Responsive */
+                    /* Responsive Design */
                     @media (max-width: 1400px) {
-                        .bills-table th,
-                        .bills-table td {
-                            padding: 10px 12px;
-                            font-size: 0.8rem;
+                        .filter-panel {
+                            width: 280px;
+                        }
+                        
+                        .header-stats {
+                            gap: 16px;
                         }
                     }
 
                     @media (max-width: 1200px) {
-                        .stats-grid.compact {
+                        .summary-grid {
                             grid-template-columns: repeat(2, 1fr);
                         }
                         
-                        .summary-grid {
-                            grid-template-columns: repeat(3, 1fr);
-                        }
-                    }
-
-                    @media (max-width: 1024px) {
-                        .dashboard-container {
-                            padding: 12px;
+                        .bills-table {
+                            font-size: 0.7rem;
                         }
                         
                         .bills-table th,
                         .bills-table td {
-                            padding: 8px 10px;
-                        }
-                        
-                       
-                        
-                        .date-input-wrapper input[type="date"] {
-                            padding-right: 10px;
+                            padding: 10px 12px;
                         }
                     }
 
-                    @media (max-width: 768px) {
-                        .search-container {
+                    @media (max-width: 1023px) {
+                        .dashboard-container {
+                            padding: 16px;
+                        }
+                        
+                        .hotel-selector {
                             flex-wrap: wrap;
                         }
-
-                        .search-input-wrapper {
-                            width: 100%;
+                        
+                        .header-stats {
+                            display: none;
                         }
-
-                        .filter-row {
-                            grid-template-columns: 1fr;
+                        
+                        .content-header {
+                            padding: 12px 16px;
                         }
-
-                        .summary-totals {
-                            flex-direction: column;
-                            align-items: flex-start;
-                            gap: 8px;
+                        
+                        .bills-table {
+                            min-width: 1000px; /* Enable horizontal scroll on mobile */
                         }
                         
                         .summary-grid {
-                            grid-template-columns: repeat(2, 1fr);
+                            grid-template-columns: 1fr;
+                        }
+                    }
+
+                    @media (max-width: 640px) {
+                        .dashboard-container {
+                            padding: 12px;
                         }
                         
+                        .panel-content {
+                            padding: 16px;
+                        }
                         
-                        .date-input-wrapper input[type="date"] {
-                            padding-right: 10px;
+                        .quick-stats {
+                            grid-template-columns: 1fr;
+                        }
+                        
+                        .status-buttons {
+                            grid-template-columns: 1fr;
+                        }
+                        
+                        .filter-actions {
+                            position: sticky;
+                            bottom: 0;
+                            background: white;
+                            margin: -20px -16px -16px;
+                            padding: 16px;
+                            border-top: 1px solid #e5e7eb;
+                        }
+                        
+                        .delete-popup {
+                            margin: 0 16px;
+                        }
+                        
+                        .popup-actions {
+                            flex-direction: column;
+                        }
+                        
+                        .popup-actions button {
+                            width: 100%;
                         }
                     }
 
                     @media (max-width: 480px) {
-                        .stats-grid.compact {
-                            grid-template-columns: 1fr;
-                        }
-                        
-                        .summary-grid {
-                            grid-template-columns: 1fr;
-                        }
-                        
-                        .results-summary {
+                        .content-header {
                             flex-direction: column;
                             align-items: flex-start;
+                            gap: 12px;
                         }
                         
-                        .modal-actions {
-                            flex-direction: column;
-                        }
-                        
-                        .modal-actions .btn {
+                        .header-right {
                             width: 100%;
+                            justify-content: space-between;
+                        }
+                        
+                        .modal-content {
+                            margin: 0 12px;
+                        }
+                        
+                        .bill-details-grid {
+                            grid-template-columns: 1fr;
                         }
                     }
                 `}</style>

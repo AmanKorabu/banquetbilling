@@ -12,6 +12,7 @@ function NewServing() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [enquiryPage, setEnquiryPage] = useState(false);
 
   const stateRefs = useRef({
     openConfirm: false,
@@ -81,11 +82,22 @@ function NewServing() {
   }, [search]);
 
   const handleBackClick = useCallback(() => setOpenConfirm(true), []);
-
+  useEffect(() => {
+    const stored = sessionStorage.getItem("fromEnquiry");
+    if (stored === 'true') {
+      setEnquiryPage(true);
+    }
+  }, []);
   const handleConfirm = useCallback(() => {
     setOpenConfirm(false);
-    navigate("/new-booking");
-  }, [navigate]);
+    navigate('/new-booking',
+      {
+        state: {
+          ...(enquiryPage && { fromEnquiry: true }),
+        },
+      }
+    );
+  }, [navigate, enquiryPage]);
 
   const handleCancel = useCallback(() => setOpenConfirm(false), []);
 
@@ -103,6 +115,7 @@ function NewServing() {
 
     navigate("/new-booking", {
       state: {
+        ...(enquiryPage && { fromEnquiry: true }),
         selectedServing: serving,
         servingData: {
           servingId,
@@ -110,7 +123,7 @@ function NewServing() {
         },
       },
     });
-  }, [navigate]);
+  }, [navigate, enquiryPage]);
 
   const handleAddNew = useCallback(() => {
     navigate("/new-serving-form", { state: { fromSearch: true } });

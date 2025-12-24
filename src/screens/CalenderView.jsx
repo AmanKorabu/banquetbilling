@@ -804,12 +804,12 @@ const CalendarView = () => {
                 </div>
               </div>
               <div className="calendar-modal-actions">
-                <button className="calendar-modal-edit-btn">
+                {/* <button className="calendar-modal-edit-btn">
                   Edit booking
                 </button>
                 <button className="calendar-modal-delete-btn">
                   Delete
-                </button>
+                </button> */}
                 <button
                   className="calendar-modal-secondary-btn"
                   onClick={() => setSelectedEvent(null)}

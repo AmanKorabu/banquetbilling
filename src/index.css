@@ -307,6 +307,8 @@ header {
         height: 60px;
         position: fixed;
     }
+
+   
 }
 
 .view-span {
@@ -3392,7 +3394,7 @@ select {
 }
 
 .receipt-print-loading {
-    padding: 16px 0; 
+    padding: 16px 0;
     text-align: center;
     font-size: 14px;
 }

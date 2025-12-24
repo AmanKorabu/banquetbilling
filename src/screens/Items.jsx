@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { TiArrowBackOutline } from "react-icons/ti";
 import {
     Dialog,
@@ -10,9 +10,9 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { 
-    LuSquareMousePointer, 
-    LuSearch, 
+import {
+    LuSquareMousePointer,
+    LuSearch,
     LuPlus,
     LuChevronDown,
     LuChevronUp,
@@ -24,7 +24,7 @@ import useEscapeNavigate from "../hooks/EscapeNavigate";
 function Items() {
     const navigate = useNavigate();
     useEscapeNavigate('/new-booking');
-    
+
     // --- State Management ---
     const [openConfirm, setOpenConfirm] = useState(false);
     const [itemsList, setItemsList] = useState([]);
@@ -34,6 +34,7 @@ function Items() {
     const [menus, setMenus] = useState({});
     const [loading, setLoading] = useState(false);
     const [selectedFilter, setSelectedFilter] = useState("all");
+    const [enquiryPage, setEnquiryPage] = useState(false);
 
     // --- Fetch Items ---
     useEffect(() => {
@@ -48,9 +49,9 @@ function Items() {
                 }
 
                 const response = await axios.get("/banquetapi/search_pack.php", {
-                    params: { 
-                        hotel_id: hotelId, 
-                        search_param: search 
+                    params: {
+                        hotel_id: hotelId,
+                        search_param: search
                     },
                 });
 
@@ -78,29 +79,42 @@ function Items() {
 
     // --- Back Confirmation Dialog ---
     const handleBackClick = () => setOpenConfirm(true);
-    const handleConfirm = () => {
+    useEffect(() => {
+        const stored = sessionStorage.getItem("fromEnquiry");
+        if (stored === 'true') {
+            setEnquiryPage(true);
+        }
+    }, []);
+    const handleConfirm = useCallback(() => {
         setOpenConfirm(false);
-        navigate("/new-booking");
-    };
+        navigate('/new-booking',
+            {
+                state: {
+                    ...(enquiryPage && { fromEnquiry: true }),
+                },
+            }
+        );
+    }, [navigate, enquiryPage]);
     const handleCancel = () => setOpenConfirm(false);
 
     // --- Select Item Logic ---
     const handleItemClick = (item) => {
         if (!item.cats || item.cats.length === 0) {
-            navigate("/new-booking", { 
-                state: { 
+            navigate("/new-booking", {
+                state: {
+                    ...(enquiryPage && { fromEnquiry: true }),
                     selectedItem: item,
                     timestamp: Date.now()
-                } 
+                }
             });
             return;
         }
 
-        navigate("/item-menu", { 
-            state: { 
+        navigate("/item-menu", {
+            state: {
                 selectedItem: item,
                 timestamp: Date.now()
-            } 
+            }
         });
     };
 
@@ -170,7 +184,7 @@ function Items() {
             <div className="page-headerr">
                 <div className="header-wrapper">
                     <div className="header-main">
-                        <button 
+                        <button
                             className="back-navigation-btn"
                             onClick={handleBackClick}
                         >
@@ -191,7 +205,7 @@ function Items() {
                     <div className="panel-content">
                         <div className="search-controls">
                             <div className="search-input-container">
-                               
+
                                 <input
                                     type="text"
                                     placeholder="Search items by name..."
@@ -200,30 +214,30 @@ function Items() {
                                     className="search-field"
                                 />
                             </div>
-                            
+
                             <div className="filter-controls">
                                 <div className="filter-options-group">
-                                    <button 
+                                    <button
                                         className={`filter-option ${selectedFilter === 'all' ? 'active-filter' : ''}`}
                                         onClick={() => setSelectedFilter('all')}
                                     >
                                         All Items
                                     </button>
-                                    <button 
+                                    <button
                                         className={`filter-option ${selectedFilter === 'withMenu' ? 'active-filter' : ''}`}
                                         onClick={() => setSelectedFilter('withMenu')}
                                     >
                                         With Menu
                                     </button>
-                                    <button 
+                                    <button
                                         className={`filter-option ${selectedFilter === 'withoutMenu' ? 'active-filter' : ''}`}
                                         onClick={() => setSelectedFilter('withoutMenu')}
                                     >
                                         Without Menu
                                     </button>
                                 </div>
-                                
-                                <button 
+
+                                <button
                                     className="filter-reset-btn"
                                     onClick={handleReset}
                                 >
@@ -304,7 +318,7 @@ function Items() {
                                                     <div className="action-buttons-group">
                                                         {item.cats && item.cats.length > 0 ? (
                                                             <>
-                                                                <button 
+                                                                <button
                                                                     className="view-categories-btn"
                                                                     onClick={() => toggleExpand(item)}
                                                                 >
@@ -320,7 +334,7 @@ function Items() {
                                                                         </>
                                                                     )}
                                                                 </button>
-                                                                <button 
+                                                                <button
                                                                     className="select-item-btn"
                                                                     onClick={() => handleItemClick(item)}
                                                                 >
@@ -329,7 +343,7 @@ function Items() {
                                                                 </button>
                                                             </>
                                                         ) : (
-                                                            <button 
+                                                            <button
                                                                 className="select-item-btn primary-select"
                                                                 onClick={() => handleItemClick(item)}
                                                             >
@@ -344,25 +358,25 @@ function Items() {
                                             {expandedItem === item.PackageId &&
                                                 menus[item.PackageId] &&
                                                 menus[item.PackageId].length > 0 && (
-                                                <tr className="categories-row">
-                                                    <td colSpan="4">
-                                                        <div className="categories-panel">
-                                                            <div className="categories-header">
-                                                                <h4 className="categories-title">Available Categories</h4>
-                                                            </div>
-                                                            <div className="categories-grid-layout">
-                                                                {menus[item.PackageId].map((cat, i) => (
-                                                                    <div key={i} className="category-item-card">
-                                                                        <div className="category-item-content">
-                                                                            <span className="category-name-text">{cat.CategoryName}</span>
+                                                    <tr className="categories-row">
+                                                        <td colSpan="4">
+                                                            <div className="categories-panel">
+                                                                <div className="categories-header">
+                                                                    <h4 className="categories-title">Available Categories</h4>
+                                                                </div>
+                                                                <div className="categories-grid-layout">
+                                                                    {menus[item.PackageId].map((cat, i) => (
+                                                                        <div key={i} className="category-item-card">
+                                                                            <div className="category-item-content">
+                                                                                <span className="category-name-text">{cat.CategoryName}</span>
+                                                                            </div>
                                                                         </div>
-                                                                    </div>
-                                                                ))}
+                                                                    ))}
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            )}
+                                                        </td>
+                                                    </tr>
+                                                )}
                                         </React.Fragment>
                                     ))}
                                 </tbody>

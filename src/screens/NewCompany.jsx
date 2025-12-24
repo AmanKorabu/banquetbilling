@@ -11,6 +11,7 @@ function NewCompany() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [enquiryPage, setEnquiryPage] = useState(false);
 
   // Ref for state to avoid stale closures in keyboard events
   const stateRefs = useRef({
@@ -91,11 +92,24 @@ function NewCompany() {
 
   // Back button handlers
   const handleBackClick = useCallback(() => setOpenConfirm(true), []);
-  
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem("fromEnquiry");
+    if (stored === 'true') {
+      setEnquiryPage(true);
+    }
+  }, []);
+
   const handleConfirm = useCallback(() => {
     setOpenConfirm(false);
-    navigate('/new-booking');
-  }, [navigate]);
+    navigate('/new-booking',
+      {
+        state: {
+          ...(enquiryPage && { fromEnquiry: true }),
+        },
+      }
+    );
+  }, [navigate, enquiryPage]);
 
   const handleCancel = useCallback(() => setOpenConfirm(false), []);
 
@@ -111,12 +125,13 @@ function NewCompany() {
     // Navigate back to new-booking with the selected company
     navigate('/new-booking', {
       state: {
+        ...(enquiryPage && { fromEnquiry: true }),
         selectedCompany: company,
         companyId: company.LedgerId,  // Pass companyId
         companyName: company.LedgerName || company.Name || company.companyName  // Pass companyName
       }
     });
-  }, [navigate]);
+  }, [navigate, enquiryPage]);
 
   // Handle adding new company
   const handleAddNew = useCallback(() => {
@@ -128,7 +143,7 @@ function NewCompany() {
   // Handle keyboard events
   const handleKeyDown = useCallback((event) => {
     const currentState = stateRefs.current;
-    
+
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -140,14 +155,14 @@ function NewCompany() {
         // If no dialog open, show confirmation
         setOpenConfirm(true);
       }
-    } 
+    }
     else if (event.key === 'Enter') {
       event.preventDefault();
-      
+
       if (currentState.openConfirm) {
         // If confirmation dialog is open, confirm the action
         handleConfirm();
-      } 
+      }
       else if (currentState.companies.length > 0 && !currentState.loading) {
         // If there are companies and Enter is pressed, select the first company
         const firstCompany = currentState.companies[0];
@@ -311,13 +326,13 @@ function NewCompany() {
             </thead>
             <tbody>
               {companies.map((company, index) => (
-                <tr 
+                <tr
                   key={company.LedgerId || company.id || index}
                   className={index === 0 ? "first-company-row" : ""}
                 >
                   <td>{index + 1}</td>
                   <td>
-                    <div className="item-name"> 
+                    <div className="item-name">
                       {company.LedgerName || company.Name || company.companyName}
                     </div>
                   </td>
@@ -339,22 +354,22 @@ function NewCompany() {
               )}
             </tbody>
           </table>
-          
+
           {/* Keyboard shortcuts help */}
           {companies.length > 0 && (
-            <div style={{ 
-              marginTop: '10px', 
-              fontSize: '12px', 
+            <div style={{
+              marginTop: '10px',
+              fontSize: '12px',
               color: '#666',
               textAlign: 'center',
               padding: '5px',
               border: '1px dashed #ccc',
               borderRadius: '4px'
             }}>
-              💡 <strong>Keyboard Shortcuts:</strong> 
-              <kbd>Esc</kbd> Back • 
-              <kbd>Enter</kbd> Select First • 
-              <kbd>F2</kbd> Select First • 
+              💡 <strong>Keyboard Shortcuts:</strong>
+              <kbd>Esc</kbd> Back •
+              <kbd>Enter</kbd> Select First •
+              <kbd>F2</kbd> Select First •
               <kbd>F3</kbd> Add New •
               <kbd>F6</kbd> Focus Search
             </div>

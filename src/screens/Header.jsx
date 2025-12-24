@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { RxHamburgerMenu } from "react-icons/rx";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { TbLogout2 } from "react-icons/tb";
-import { toast, ToastContainer } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { IoHomeOutline, IoPeople, IoDocuments, IoSettings } from "react-icons/io5";
 import { HiChevronRight, HiChevronDown } from "react-icons/hi";
@@ -122,13 +122,12 @@ function Header() {
     const hotelName = localStorage.getItem('hotel_name')
     return (
         <>
-            <ToastContainer position="top-right" autoClose={2000} />
 
             {/* Professional Header */}
-            <header className="header">
-                <div className="header-content">
+            <header className="header5">
+                <div className="header-content5">
                     {/* Left Section - Menu & Brand */}
-                    <div className="header-left">
+                    <div className="header-left5">
                         <div
                             className="menu-toggle"
                             ref={buttonRef}
@@ -147,7 +146,7 @@ function Header() {
                     </div>
 
                     {/* Right Section - Navigation */}
-                    <div className="header-right">
+                    <div className="header-right5">
                         <NavLink to="/dashboard" className="home-link">
                             <IoHomeOutline size={20} />
                         </NavLink>
@@ -295,7 +294,7 @@ function Header() {
 
             <style>{`
                 /* Header Styles */
-                .header {
+                .header5 {
                     background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
                     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
                     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
@@ -308,7 +307,7 @@ function Header() {
                     border-radius: 0 0 20px 20px;
                 }
 
-                .header-content {
+                .header-content5 {
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
@@ -318,7 +317,7 @@ function Header() {
                     flex-direction: row;
                 }
 
-                .header-left {
+                .header-left5 {
                     display: flex;
                     align-items: center;
                     gap: 16px;

@@ -9,7 +9,6 @@ import {
   FaTrash,
   FaFileInvoice,
   FaPlus,
-  FaFilter,
   FaCalendarAlt,
   FaRupeeSign,
   FaSync,
@@ -19,7 +18,6 @@ import {
   FaMoneyBillWave,
 } from "react-icons/fa";
 import NewBookingDashboard from "../components/NewBookingDashboard";
-
 const DemoBillList = () => {
   const navigate = useNavigate();
 
@@ -78,27 +76,28 @@ const DemoBillList = () => {
   }, []);
 
   // Enhanced date change handlers with validation AND state preservation
-  const handleFromDateChange = useCallback((newDate) => {
-    setFromDate(newDate);
+  const handleFromDateChange = (newDate) => {
+    if (!newDate) return;
 
-    // Validate immediately when from date changes
-    const validation = validateDateRange(newDate, toDate);
-    setDateValidation(validation);
+    const d = dayjs(newDate);
+    if (!d.isValid()) return;
 
-    // If to date is now before from date, adjust to date
-    if (!validation.isValid) {
-      const adjustedToDate = newDate;
-      setToDate(adjustedToDate);
+    setFromDate(d);
+
+    if (toDate && d.isAfter(toDate, "day")) {
+      setToDate(d);
     }
-  }, [toDate, validateDateRange]);
+  };
 
-  const handleToDateChange = useCallback((newDate) => {
-    setToDate(newDate);
+  const handleToDateChange = (newDate) => {
+    if (!newDate) return;
 
-    // Validate immediately when to date changes
-    const validation = validateDateRange(fromDate, newDate);
-    setDateValidation(validation);
-  }, [fromDate, validateDateRange]);
+    const d = dayjs(newDate);
+    if (!d.isValid()) return;
+
+    setToDate(d);
+  };
+
 
   // Validate dates whenever they change
   useEffect(() => {
@@ -121,14 +120,10 @@ const DemoBillList = () => {
       const hotelId = localStorage.getItem("hotel_id");
       const fromDateStr = fromDate.format("YYYY-MM-DD");
       const toDateStr = toDate.format("YYYY-MM-DD");
-
       const apiUrl = `/banquetapi/get_quot_list4.php?hotel_id=${hotelId}&fromdate=${fromDateStr}&todate=${toDateStr}&venue_id=0&comp_id=0&status_id=0`;
-
       console.log("📡 Fetching bills from:", apiUrl);
-
       const response = await fetch(apiUrl);
       const data = await response.json();
-
       console.log("📦 API Response:", data);
 
       if (data && data.result && Array.isArray(data.result)) {
@@ -155,10 +150,8 @@ const DemoBillList = () => {
           single_event: bill.single_event || "1",
           quotation_event_id: bill.QuotationEventId || ""
         }));
-
         console.log("🔄 Transformed bills:", transformedBills);
         setBills(transformedBills);
-        // toast.success(`Loaded ${transformedBills.length} quotations`, { toastId: 'bill-loaded' });
       } else {
         console.warn("⚠️ Unexpected API response format:", data);
         setBills([]);
@@ -172,7 +165,6 @@ const DemoBillList = () => {
       setLoading(false);
     }
   };
-
   // Update the useEffect to include dateValidation dependency
   useEffect(() => {
     // Only fetch if date range is valid
@@ -346,7 +338,6 @@ const DemoBillList = () => {
   const handleRefresh = () => {
     fetchBills();
   };
-
   // Reset dates to today
   const resetDatesToToday = () => {
     const today = dayjs();
@@ -354,7 +345,6 @@ const DemoBillList = () => {
     setToDate(today);
     toast.info("Dates reset to today", { toastId: 'date-reset' });
   };
-
   // Get status color and icon
   const getStatusConfig = (status) => {
     if (!status) return { color: '#6b7280', bgColor: '#f9fafb', borderColor: '#d1d5db' };
@@ -426,8 +416,6 @@ const DemoBillList = () => {
   return (
     <>
       <NewBookingDashboard />
-
-      {/* Delete Confirmation Popup */}
       {deletePopup.isOpen && (
         <div className="delete-popup-overlay">
           <div className="delete-popup">
@@ -447,7 +435,6 @@ const DemoBillList = () => {
                 <FaTrash className="warning-icon" />
                 <p>You are about to delete quotation <strong>{deletePopup.bill?.quotation_no}</strong> for <strong>{deletePopup.bill?.party_name}</strong>.</p>
               </div>
-
               <div className="reason-input-group">
                 <label htmlFor="deleteReason">
                   Reason for deletion <span className="required">*</span>

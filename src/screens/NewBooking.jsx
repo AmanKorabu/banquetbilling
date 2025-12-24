@@ -16,8 +16,7 @@ import { GrStatusUnknown } from "react-icons/gr";
 import { MdShoppingCart } from "react-icons/md";
 import { FaPrint } from "react-icons/fa";
 import { useNavigate, useLocation } from "react-router-dom";
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { useNotify } from "../context/NotifyProvider";
 import { DatePicker, TimePicker } from "@mui/x-date-pickers";
 import dayjs from "dayjs";
 import ConfirmationDialog from "../components/ConfirmationDilog";
@@ -35,6 +34,7 @@ import MakeInvoiceDialog from "../components/MakeInvoiceDialog";
 import MakeReceiptDialog from "../components/MakeReceiptDialog";
 import ReceiptPrintDialog from "../components/ReceiptPrintDialog";
 
+/* ----------------------- Safe Session Storage ------------------------ */
 /* ----------------------- Safe Session Storage ------------------------ */
 const safeSessionStorage = {
     getItem: (key) => {
@@ -74,6 +74,30 @@ const safeSessionStorage = {
         } catch (error) {
             console.error(`Error writing receipts for ${quotId} to sessionStorage:`, error);
         }
+    },
+    // ENQUIRY STORAGE - ADD THIS BLOCK
+    getEnquiryMeta: () => {
+        try {
+            const data = sessionStorage.getItem('enquiryMeta');
+            return data ? JSON.parse(data) : null;
+        } catch (error) {
+            console.error('Error reading enquiry meta:', error);
+            return null;
+        }
+    },
+    setEnquiryMeta: (value) => {
+        try {
+            sessionStorage.setItem('enquiryMeta', JSON.stringify(value));
+        } catch (error) {
+            console.error('Error writing enquiry meta:', error);
+        }
+    },
+    removeEnquiryMeta: () => {
+        try {
+            sessionStorage.removeItem('enquiryMeta');
+        } catch (error) {
+            console.error('Error removing enquiry meta:', error);
+        }
     }
 };
 
@@ -108,56 +132,7 @@ const useRafThrottle = (fn) => {
     }, [fn]);
 };
 
-// Toast ID generator
 
-
-// Safe toast wrapper
-// Simple toast wrapper
-const useSafeToast = () => {
-    return useMemo(() => ({
-        error: (message, options = {}) => {
-            try {
-                // Use a simple unique ID
-                toast.error(message, {
-                    toastId: `error-${Date.now()}-${Math.random()}`,
-                    ...options
-                });
-            } catch (error) {
-                console.error('Toast error:', error);
-            }
-        },
-        success: (message, options = {}) => {
-            try {
-                toast.success(message, {
-                    toastId: `success-${Date.now()}-${Math.random()}`,
-                    ...options
-                });
-            } catch (error) {
-                console.error('Toast error:', error);
-            }
-        },
-        info: (message, options = {}) => {
-            try {
-                toast.info(message, {
-                    toastId: `info-${Date.now()}-${Math.random()}`,
-                    ...options
-                });
-            } catch (error) {
-                console.error('Toast error:', error);
-            }
-        },
-        warning: (message, options = {}) => {
-            try {
-                toast.warning(message, {
-                    toastId: `warning-${Date.now()}-${Math.random()}`,
-                    ...options
-                });
-            } catch (error) {
-                console.error('Toast error:', error);
-            }
-        }
-    }), []);
-};
 
 /* ----------------------- Balance Amount Component ------------------------ */
 const BalanceAmountDisplay = ({ receipts, billAmount }) => {
@@ -303,7 +278,7 @@ function NewBooking() {
 
     const navigate = useNavigate();
     const location = useLocation();
-    const safeToast = useSafeToast();
+    const safeToast = useNotify()
     // State declarations   
     const [billingCompanies, setBillingCompanies] = useState([]);
     const [attendees, setAttendees] = useState([]);
@@ -328,16 +303,81 @@ function NewBooking() {
     const [openInvoiceDialog, setOpenInvoiceDialog] = useState(false);
     const [invoiceWithPrint, setInvoiceWithPrint] = useState(false);
     const [openReceiptDialog, setOpenReceiptDialog] = useState(false);
+    const [fromEnquiry, setFromEnquiry] = useState(false);
+    const [enquiryQuotationId, setEnquiryQuotationId] = useState(null);
 
     // Was this booking started from Enquiry?
-    const fromEnquiry = !!(
-        location.state?.fromEnquiry ||
-        location.state?.from === "enquiry" ||
-        location.state?.mode === "enquiry" ||
-        location.state?.mode === "from-enquiry"
-    );
+    // Was this booking started from Enquiry?
+    // Was this booking started from Enquiry?
+    useEffect(() => {
+        console.log("🔍 Checking if booking is from enquiry...");
 
+        // Get data from session storage first
+        const storedEnquiryMeta = sessionStorage.getItem('enquiryMeta');
+        const storedFromEnquiry = sessionStorage.getItem('fromEnquiry');
+        const storedEnquiryQuotId = sessionStorage.getItem('enquiryQuotationId');
 
+        // Check location state
+        const locationState = location.state || {};
+        const locationEnquiry = !!(
+            locationState.fromEnquiry ||
+            locationState.from === "enquiry" ||
+            locationState.mode === "enquiry" ||
+            locationState.mode === "from-enquiry"
+        );
+
+        const enquiryMetaFromLocation = locationState.enquiryMeta;
+
+        console.log("📋 Enquiry data found:", {
+            locationEnquiry,
+            hasLocationMeta: !!enquiryMetaFromLocation,
+            storedFromEnquiry,
+            hasStoredMeta: !!storedEnquiryMeta,
+            storedEnquiryQuotId
+        });
+
+        // Determine if we're from enquiry
+        const isFromEnquiry = locationEnquiry || storedFromEnquiry === 'true';
+        setFromEnquiry(isFromEnquiry);
+
+        // Determine enquiry quotation ID - priority: location > session storage
+        let quotIdToSet = null;
+
+        if (enquiryMetaFromLocation && enquiryMetaFromLocation.QuotationId) {
+            // From location state
+            quotIdToSet = enquiryMetaFromLocation.QuotationId;
+            console.log("✅ Using QuotationId from location state:", quotIdToSet);
+
+            // Store in session for persistence
+            sessionStorage.setItem('enquiryMeta', JSON.stringify(enquiryMetaFromLocation));
+            sessionStorage.setItem('enquiryQuotationId', quotIdToSet);
+            sessionStorage.setItem('fromEnquiry', 'true');
+        } else if (storedEnquiryMeta) {
+            // From session storage
+            try {
+                const parsed = JSON.parse(storedEnquiryMeta);
+                if (parsed.QuotationId) {
+                    quotIdToSet = parsed.QuotationId;
+                    console.log("✅ Using QuotationId from session storage:", quotIdToSet);
+                }
+            } catch (err) {
+                console.error("❌ Error parsing stored enquiry meta:", err);
+            }
+        } else if (storedEnquiryQuotId) {
+            // Direct ID from session storage
+            quotIdToSet = storedEnquiryQuotId;
+            console.log("✅ Using enquiryQuotationId from session storage:", quotIdToSet);
+        }
+
+        if (quotIdToSet) {
+            setEnquiryQuotationId(quotIdToSet);
+        }
+
+        console.log("📊 Final enquiry status:", {
+            fromEnquiry: isFromEnquiry,
+            enquiryQuotationId: quotIdToSet
+        });
+    }, [location]);
     // Where should "Back" go to?
     const [backToPath, setBackToPath] = useState(() => {
         return safeSessionStorage.getItem("bookingBackTo") || null;
@@ -412,6 +452,11 @@ function NewBooking() {
     const itemDetailsSectionRef = useRef(null);
     const servingNameRef = useRef(null);
     const enquiryAppliedRef = useRef(false);
+    // Add to your existing refs section
+    // Add these refs with your existing ones
+    // const lastFunctionKeyPressRef = useRef(0);
+    // const lastAddItemRef = useRef(0);
+    // const isProcessingRef = useRef(false);
 
 
     // Internal refs
@@ -472,91 +517,6 @@ function NewBooking() {
         [safeToast, location.state, editingQuotId]
     );
 
-    // const handleReceiptPrintNow = useCallback(() => {
-    //     if (!printReceiptData) return;
-
-    //     const format = (v) => {
-    //         const num = Number(v);
-    //         return Number.isFinite(num) ? num.toFixed(2) : "0.00";
-    //     };
-
-    //     try {
-    //         const title = `Receipt-${printReceiptData.VoucherNo || ""}`;
-    //         const printWindow = window.open("", "_blank", "width=900,height=650");
-
-    //         if (!printWindow) {
-    //             safeToast.error("Popup blocked. Please allow popups to print.");
-    //             return;
-    //         }
-
-    //         const doc = printWindow.document;
-    //         doc.write(`
-    //         <html>
-    //         <head>
-    //             <title>${title}</title>
-    //             <style>
-    //                 body { font-family: Arial, sans-serif; margin: 0; padding: 16px; }
-    //                 .receipt-container { max-width: 600px; margin: 0 auto; border: 1px solid #ddd; padding: 16px 20px; }
-    //                 .receipt-header { text-align: center; margin-bottom: 16px; }
-    //                 .receipt-header h2 { margin: 0 0 4px 0; }
-    //                 .receipt-meta, .receipt-party { font-size: 14px; margin-bottom: 8px; }
-    //                 .receipt-meta div, .receipt-party div { margin-bottom: 2px; }
-    //                 table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
-    //                 td { padding: 4px 0; }
-    //                 td.amount { text-align: right; }
-    //                 tr.total-row td { border-top: 1px solid #000; font-weight: bold; padding-top: 6px; }
-    //                 .footer { margin-top: 16px; font-size: 13px; }
-    //             </style>
-    //         </head>
-    //         <body>
-    //             <div class="receipt-container">
-    //                 <div class="receipt-header">
-    //                     <h2>RECEIPT</h2>
-    //                     <div>Receipt No: ${printReceiptData.VoucherNo || ""}</div>
-    //                 </div>
-    //                 <div class="receipt-meta">
-    //                     <div><strong>Date:</strong> ${printReceiptData.Date || ""}</div>
-    //                     <div><strong>Quotation No:</strong> ${printReceiptData.QuotationNo || ""}</div>
-    //                 </div>
-    //                 <div class="receipt-party">
-    //                     <div><strong>Party:</strong> ${printReceiptData.PartyName || ""}</div>
-    //                     ${printReceiptData.Address ? `<div><strong>Address:</strong> ${printReceiptData.Address}</div>` : ""}
-    //                     ${printReceiptData.MobileNo ? `<div><strong>Mobile:</strong> ${printReceiptData.MobileNo}</div>` : ""}
-    //                 </div>
-    //                 <table>
-    //                     <tbody>
-    //                         <tr><td>Package Charges</td><td class="amount">${format(printReceiptData.PackageCharges)}</td></tr>
-    //                         ${Number(printReceiptData.VenueCharges) ? `<tr><td>Venue Charges</td><td class="amount">${format(printReceiptData.VenueCharges)}</td></tr>` : ""}
-    //                         ${Number(printReceiptData.OtherCharges) ? `<tr><td>Other Charges</td><td class="amount">${format(printReceiptData.OtherCharges)}</td></tr>` : ""}
-    //                         <tr><td>Sub Total</td><td class="amount">${format(printReceiptData.SubTotal)}</td></tr>
-    //                         ${Number(printReceiptData.Discount) ? `<tr><td>Discount</td><td class="amount">-${format(printReceiptData.Discount)}</td></tr>` : ""}
-    //                         ${Number(printReceiptData.Taxable) ? `<tr><td>Taxable</td><td class="amount">${format(printReceiptData.Taxable)}</td></tr>` : ""}
-    //                         ${Number(printReceiptData.Tax) ? `<tr><td>Tax</td><td class="amount">${format(printReceiptData.Tax)}</td></tr>` : ""}
-    //                         ${Number(printReceiptData.ExtraCharges) ? `<tr><td>Extra Charges</td><td class="amount">${format(printReceiptData.ExtraCharges)}</td></tr>` : ""}
-    //                         ${Number(printReceiptData.RoundOff) ? `<tr><td>Round Off</td><td class="amount">${format(printReceiptData.RoundOff)}</td></tr>` : ""}
-    //                         <tr><td>Received</td><td class="amount">${format(printReceiptData.Received)}</td></tr>
-    //                         <tr class="total-row"><td>Bill Amount</td><td class="amount">${format(printReceiptData.BillAmount)}</td></tr>
-    //                     </tbody>
-    //                 </table>
-    //                 <div class="footer">
-    //                     <div><strong>Mode:</strong> ${printReceiptData.Paymode || ""} ${printReceiptData.Account ? `(${printReceiptData.Account})` : ""}</div>
-    //                     ${printReceiptData.Note ? `<div><strong>Note:</strong> ${printReceiptData.Note}</div>` : ""}
-    //                 </div>
-    //             </div>
-    //         </body>
-    //         </html>
-    //     `);
-    //         doc.close();
-    //         printWindow.focus();
-    //         printWindow.print();
-
-    //         // close the popup dialog
-    //         setOpenReceiptPrintDialog(false);
-    //     } catch (err) {
-    //         console.error("❌ Error printing receipt:", err);
-    //         safeToast.error("Failed to print receipt");
-    //     }
-    // }, [printReceiptData, safeToast, setOpenReceiptPrintDialog]);
 
     /* ----------------------- Field Highlighting Functions ------------------------ */
     const highlightInvalidField = useCallback((validation) => {
@@ -746,11 +706,15 @@ function NewBooking() {
             "functionId", "functionName", "companyId", "companyName", "venueId", "venueName",
             "servingId", "servingName", "scrollPosition",
             "isEditMode", "editingQuotId", "editingBillId",
-            "fromEnquiry", "bookingBackTo",        // <-- add these
+            "fromEnquiry", "bookingBackTo",
+            // ADD THESE 3 LINES
+            "enquiryQuotationId", "enquiryNumber", "quotationNumber",
         ];
 
-
         itemsToRemove.forEach(item => safeSessionStorage.removeItem(item));
+
+        // ADD THIS LINE - Clear enquiry meta
+        safeSessionStorage.removeEnquiryMeta();
 
         // Preserve receipts if in edit mode
         if (isEditMode && editingQuotId) {
@@ -1133,105 +1097,100 @@ function NewBooking() {
 
     // 7. Location state handling with protection
     // 7. Location state handling with protection - FIXED
+    // 7. Location state handling with protection - FIXED
     useEffect(() => {
-        const stateKey = `${location.key}-${JSON.stringify(location.state)}`;
-        if (processedStateRef.current.has(stateKey)) {
-            console.log('🔄 Skipping already processed state');
-            return;
-        }
+        const processState = async () => {
+            const stateKey = `${location.key}-${JSON.stringify(location.state)}`;
 
-        processedStateRef.current.add(stateKey);
-
-        // Use timeout to ensure component stability
-        setTimeout(() => {
-            const {
-                selectedItem, selectedMenus, updatedMenus,
-                editingIndex: locationEditingIndex, // Rename to avoid conflict
-                partyName, companyName, functionName, servingData, isEditingMenus,
-            } = location.state || {};
-
-            console.log('🔄 Processing location state:', location.state);
-
-            // Handle menu updates
-            if (isEditingMenus && typeof locationEditingIndex === "number") {
-                console.log('📝 Processing menu update for index:', locationEditingIndex);
-
-                setBookingData((prev) => {
-                    const updated = [...prev.itemDetails];
-                    if (updated[locationEditingIndex]) {
-                        updated[locationEditingIndex] = {
-                            ...updated[locationEditingIndex],
-                            selectedMenus: selectedMenus || updatedMenus || {},
-                        };
-                        console.log('✅ Updated item with menus:', updated[locationEditingIndex]);
-                    }
-                    return { ...prev, itemDetails: updated };
-                });
-
-                setEditingIndex(null);
-
-                setTimeout(() => {
-                    safeToast.success("🍽 Menus updated successfully!", {
-                        autoClose: 2000
-                    });
-                }, 100);
-
-                navigate(".", { replace: true, state: {} });
+            // Skip if no state or already processed
+            if (!location.state || processedStateRef.current.has(stateKey)) {
                 return;
             }
 
-            // Handle new item selection
-            if (selectedItem && !isEditingMenus) {
-                console.log('📝 Setting current item from location state:', {
-                    itemName: selectedItem.Name,
-                    rate: selectedItem.Rate,
-                    taxPercent: selectedItem.TaxPer
-                });
+            processedStateRef.current.add(stateKey);
+            const timeoutId = setTimeout(() => {
+                const {
+                    selectedItem, selectedMenus, updatedMenus,
+                    editingIndex: locationEditingIndex,
+                    partyName, companyName, functionName, servingData, isEditingMenus,
+                } = location.state || {};
 
-                setCurrentItem((prev) => ({
-                    ...prev,
-                    itemName: selectedItem.Name ?? prev.itemName,
-                    rate: Number(selectedItem.Rate ?? prev.rate) || prev.rate,
-                    taxPercent: Number(selectedItem.TaxPer ?? prev.taxPercent) || prev.taxPercent,
-                    taxName: selectedItem.TaxName ?? prev.taxName,
-                    itemPackage: selectedItem.PackageId ?? prev.itemPackage,
-                    unit: selectedItem.Unit ?? prev.unit,
-                    cats: selectedItem.cats ?? prev.cats,
-                    selectedMenus: selectedMenus || {},
-                    itemDate: location.state.itemDate ? dayjs(location.state.itemDate) : prev.itemDate,
-                }));
+                // Handle menu updates - SINGLE notification
+                if (isEditingMenus && typeof locationEditingIndex === "number") {
+                    // Update state first
+                    setBookingData((prev) => {
+                        const updated = [...prev.itemDetails];
+                        if (updated[locationEditingIndex]) {
+                            updated[locationEditingIndex] = {
+                                ...updated[locationEditingIndex],
+                                selectedMenus: selectedMenus || updatedMenus || {},
+                            };
+                        }
+                        return { ...prev, itemDetails: updated };
+                    });
 
-                // Scroll to item section when item is selected
-                setTimeout(() => {
-                    if (itemDetailsSectionRef.current) {
-                        itemDetailsSectionRef.current.scrollIntoView({
+                    setEditingIndex(null);
+                    navigate(".", { replace: true, state: {} });
+
+                    // Show notification AFTER state update
+                    setTimeout(() => {
+                        safeToast.success("🍽 Menus updated successfully!", {
+                            autoClose: 2000,
+                            toastId: 'menu-update' // Fixed ID prevents duplicates
+                        });
+                    }, 300); // Small delay ensures state is updated
+                    return;
+                }
+
+                // Handle new item selection
+                if (selectedItem && !isEditingMenus) {
+                    setCurrentItem((prev) => ({
+                        ...prev,
+                        itemName: selectedItem.Name ?? prev.itemName,
+                        rate: Number(selectedItem.Rate ?? prev.rate) || prev.rate,
+                        taxPercent: Number(selectedItem.TaxPer ?? prev.taxPercent) || prev.taxPercent,
+                        taxName: selectedItem.TaxName ?? prev.taxName,
+                        itemPackage: selectedItem.PackageId ?? prev.itemPackage,
+                        unit: selectedItem.Unit ?? prev.unit,
+                        cats: selectedItem.cats ?? prev.cats,
+                        selectedMenus: selectedMenus || {},
+                        itemDate: location.state.itemDate ? dayjs(location.state.itemDate) : prev.itemDate,
+                    }));
+
+                    // Scroll to item section
+                    setTimeout(() => {
+                        itemDetailsSectionRef.current?.scrollIntoView({
                             behavior: "smooth",
                             block: "start",
                         });
-                    }
-                }, 100);
-            }
+                    }, 100);
+                }
 
-            // Customer & Event details
-            if (partyName || companyName || functionName || servingData) {
-                setBookingData((prev) => ({
-                    ...prev,
-                    customer: {
-                        ...prev.customer,
-                        partyName: partyName ?? prev.customer.partyName,
-                        companyName: companyName ?? prev.customer.companyName,
-                        functionName: functionName ?? prev.customer.functionName,
-                    },
-                    eventDetails: {
-                        ...prev.eventDetails,
-                        servingName: servingData?.servingName ?? prev.eventDetails.servingName,
-                        servingAddress: servingData?.servingAddress ?? prev.eventDetails.servingAddress,
-                        minPeople: servingData?.minPeople ?? prev.eventDetails.minPeople,
-                        maxPeople: servingData?.maxPeople ?? prev.eventDetails.maxPeople,
-                    },
-                }));
-            }
-        }, 0);
+                // Customer & Event details
+                if (partyName || companyName || functionName || servingData) {
+                    setBookingData((prev) => ({
+                        ...prev,
+                        customer: {
+                            ...prev.customer,
+                            partyName: partyName ?? prev.customer.partyName,
+                            companyName: companyName ?? prev.customer.companyName,
+                            functionName: functionName ?? prev.customer.functionName,
+                        },
+                        eventDetails: {
+                            ...prev.eventDetails,
+                            servingName: servingData?.servingName ?? prev.eventDetails.servingName,
+                            servingAddress: servingData?.servingAddress ?? prev.eventDetails.servingAddress,
+                            minPeople: servingData?.minPeople ?? prev.eventDetails.minPeople,
+                            maxPeople: servingData?.maxPeople ?? prev.eventDetails.maxPeople,
+                        },
+                    }));
+                }
+            }, 0);
+
+            return () => clearTimeout(timeoutId);
+        };
+
+        processState();
 
         // Cleanup processed states
         return () => {
@@ -1293,7 +1252,7 @@ function NewBooking() {
                             entryTime: serverNow,
                         };
 
-                        // FIX: Only set booking dates if NOT coming from calendar
+
                         if (!location.state?.fromCalendarDate) {
                             update.bookingFromDate = serverNow;
                             update.bookingFromTime = serverNow;
@@ -1565,9 +1524,10 @@ function NewBooking() {
                 setOtherCharges(main.OtherchBill || main.OtherCharges || "0");
                 setSettlementDiscount(main.SettleDiscBill || "0");
 
-                safeToast.info(
-                    `Editing quotation ${state.quotationMeta.quotation_no || quotId}`
-                );
+                // safeToast.info(
+                //     `Editing quotation ${state.quotationMeta.quotation_no}`,
+                //     {autoClose: 5000, toastId: 'edit-quot'},
+                // );
             } catch (err) {
                 console.error("❌ Error loading quotation details:", err);
                 safeToast.error("Failed to load quotation for editing");
@@ -1598,7 +1558,8 @@ function NewBooking() {
         if (!dateValidation.isValid) {
             safeToast.error(`⚠️ ${dateValidation.error}`, {
                 theme: "colored",
-                position: "top-center"
+                position: "top-center",
+                toastId: 'date-validation-error'
             });
 
             // Scroll to date section and highlight it
@@ -1667,12 +1628,12 @@ function NewBooking() {
                 ref: partyNameRef,
                 field: 'partyName'
             },
-            {
-                condition: !currentData.customer.companyName?.trim(),
-                message: "⚠️ Please enter Company Name",
-                ref: companyNameRef,
-                field: 'companyName'
-            },
+            // {
+            //     condition: !currentData.customer.companyName?.trim(),
+            //     message: "⚠️ Please enter Company Name",
+            //     ref: companyNameRef,
+            //     field: 'companyName'
+            // },
             {
                 condition: !currentData.customer.functionName?.trim(),
                 message: "⚠️ Please enter Function Name",
@@ -1685,24 +1646,24 @@ function NewBooking() {
                 ref: venueRef,
                 field: 'venue'
             },
-            {
-                condition: !currentData.eventDetails.servingName?.trim(),
-                message: "⚠️ Please select Serving Name",
-                ref: servingNameRef,
-                field: 'servingName'
-            },
+            // {
+            //     condition: !currentData.eventDetails.servingName?.trim(),
+            //     message: "⚠️ Please select Serving Name",
+            //     ref: servingNameRef,
+            //     field: 'servingName'
+            // },
             {
                 condition: !currentData.eventDetails.minPeople?.toString()?.trim(),
                 message: "⚠️ Please enter Min people",
                 ref: minPeopleRef,
                 field: 'minPeople'
             },
-            {
-                condition: !currentData.eventDetails.maxPeople?.toString()?.trim(),
-                message: "⚠️ Please enter Max People",
-                ref: maxPeopleRef,
-                field: 'maxPeople'
-            },
+            // {
+            //     condition: !currentData.eventDetails.maxPeople?.toString()?.trim(),
+            //     message: "⚠️ Please enter Max People",
+            //     ref: maxPeopleRef,
+            //     field: 'maxPeople'
+            // },
             {
                 condition: !currentData.bookingFromDate || !dayjs(currentData.bookingFromDate).isValid(),
                 message: "⚠️ Please select Booking From Date",
@@ -1784,7 +1745,8 @@ function NewBooking() {
             safeToast.error(firstInvalidField.message, {
                 theme: "colored",
                 position: "top-center",
-                autoClose: 3000
+                autoClose: 3000,
+                toastId: 'form-validation-error'
             });
 
             // Scroll to first invalid field
@@ -1955,7 +1917,7 @@ function NewBooking() {
     const handleVenueChange = useCallback((e) => {
         const venueName = e.target.value;
         console.log("🎯 Selected venue name:", venueName);
-        console.log("📊 Available venues:", venues); // Debug log
+        console.log("📊 Available venues:", venues);
 
         if (!venueName) {
             setBookingData(prev => ({
@@ -2134,33 +2096,50 @@ function NewBooking() {
         setOpenSaveConfirm(true);
     }, [validateForm]);
     // Add this useEffect for real-time validation clearing
+    // Add this useEffect for real-time validation clearing
     useEffect(() => {
+        let cleanupTimeout;
+
         const handleInputChange = (e) => {
             const element = e.target;
-            if (element.classList.contains('field-error-highlight')) {
-                // Remove error styling when user starts typing
-                element.classList.remove('field-error-highlight', 'input-error');
-                element.removeAttribute('data-invalid-field');
 
-                // Also remove from parent container if it's a section
-                if (element.closest('.item-details-container')) {
-                    element.closest('.item-details-container').classList.remove('field-error-highlight');
-                }
+            // Clear any existing timeout
+            if (cleanupTimeout) {
+                clearTimeout(cleanupTimeout);
             }
+
+            // Debounce the clearing to prevent rapid firing
+            cleanupTimeout = setTimeout(() => {
+                if (element.classList.contains('field-error-highlight')) {
+                    // Remove error styling when user starts typing
+                    element.classList.remove('field-error-highlight', 'input-error');
+                    element.removeAttribute('data-invalid-field');
+
+                    // Also remove from parent container if it's a section
+                    if (element.closest('.item-details-container')) {
+                        element.closest('.item-details-container').classList.remove('field-error-highlight');
+                    }
+                }
+            }, 50);
         };
 
-        // Add event listeners to all form elements
-        const formElements = document.querySelectorAll('input, select, textarea');
-        formElements.forEach(element => {
-            element.addEventListener('input', handleInputChange);
-            element.addEventListener('change', handleInputChange);
-        });
+        // Use event delegation on the form container
+        const formContainer = document.querySelector('.formContainer form');
+
+        if (formContainer) {
+            formContainer.addEventListener('input', handleInputChange);
+            formContainer.addEventListener('change', handleInputChange);
+        }
 
         return () => {
-            formElements.forEach(element => {
-                element.removeEventListener('input', handleInputChange);
-                element.removeEventListener('change', handleInputChange);
-            });
+            if (cleanupTimeout) {
+                clearTimeout(cleanupTimeout);
+            }
+
+            if (formContainer) {
+                formContainer.removeEventListener('input', handleInputChange);
+                formContainer.removeEventListener('change', handleInputChange);
+            }
         };
     }, []);
     const handleSubmit = useCallback(
@@ -2254,8 +2233,8 @@ function NewBooking() {
             // DYNAMIC invoice_flag based on isInvoiceAction
             const invoiceFlag = isInvoiceAction ? "1" : "0";
             // Inside handleSubmit, before requestBody
-            const enquiryFlag = fromEnquiry ? 1 : 0;
-            const addedFromFlag = fromEnquiry ? "E" : "Q";
+            const enquiryFlag = 0;
+            const addedFromFlag = "Q";
 
 
             const requestBody = {
@@ -2378,7 +2357,7 @@ function NewBooking() {
                         menu_itms_arr: menuItems,
                     },
                 ],
-                quot_id: isEdit ? editingQuotId : "0",
+                quot_id: isEdit ? editingQuotId : fromEnquiry ? enquiryQuotationId : "0",
                 package_amount: subTotal.toFixed(2),
                 venue_amount: "0.00",
                 other_amount: Number(otherCharges).toFixed(2),
@@ -2421,32 +2400,25 @@ function NewBooking() {
                     // Use isInvoiceAction instead of checking raw action string
                     if (isInvoiceAction) {
                         const isPrint = action === "invoice-print" || invoiceWithPrint;
-
                         safeToast.success("🎉 Invoice " + (isEdit ? "updated" : "created") + " successfully!", {
                             autoClose: 2000,
                         });
-
                         let updatedReceipts = [...receipts];
-
                         if (isEdit && editingQuotId) {
                             await refreshReceipts();
                             updatedReceipts = bookingDataRef.current.itemDetails.length > 0 ? [...receipts] : updatedReceipts;
                         }
-
                         const actualReceivedAmount = updatedReceipts.reduce(
                             (sum, receipt) => sum + (Number(receipt.Amount) || 0),
                             0
                         );
-
                         const calculatedBalance = billTotal - actualReceivedAmount;
-
                         console.log("💰 Final Bill Calculations:", {
                             billTotal,
                             actualReceivedAmount,
                             calculatedBalance,
                             receiptCount: updatedReceipts.length
                         });
-
                         // 🔴 IMPORTANT: after invoice is created/updated, clear draft/session
                         clearAllSessionData();
 
@@ -2472,7 +2444,6 @@ function NewBooking() {
                         safeToast.success("🎉 Receipt created successfully!", {
                             autoClose: 2000,
                         });
-
                         setTimeout(() => {
                             // Clear session data, but keep edit mode flags if editing
                             const preserveEdit = isEditMode;
@@ -2495,12 +2466,11 @@ function NewBooking() {
                             autoClose: 2000,
                         });
 
-                        if (quotationId) {
-                            safeToast.info(`Quotation ID: ${quotationId}`, {
-                                autoClose: 2500,
-                            });
-                        }
-
+                        // if (quotationId) {
+                        //     safeToast.info(`Quotation No: ${quotationId}`, {
+                        //         autoClose: 2500,
+                        //     });
+                        // }
                         clearAllSessionData();
                         setOpenPrintConfirm(true);
                     }
@@ -2539,29 +2509,25 @@ function NewBooking() {
         const fakeEvent = { preventDefault: () => { } };
         handleSubmit(fakeEvent, "normal");
     }, [handleSubmit]);
-
     const handleSaveCancel = useCallback(() => setOpenSaveConfirm(false), []);
-
     const handleCancelEdit = useCallback(() => {
         setCurrentItem(defaultItem);
         setEditingIndex(null);
-        safeToast.info("Edit cancelled 🔄");
+        safeToast.info("Edit cancelled 🔄", {
+            toastId: 'edit-cancelled',
+            autoClose: 1500
+        });
     }, [defaultItem, setCurrentItem, safeToast]);
-
     // Add this ref at the top with your other refs
-
-
     // FIXED: handleAddItem with duplicate prevention (based on old working version)
     const handleAddItem = useCallback(() => {
-        // Prevent multiple calls - CRITICAL FIX
+        // Prevent multiple calls with flag
         if (isAddingItemRef.current) {
             console.log('🛑 Prevented duplicate add item call');
             return;
         }
-
+        isAddingItemRef.current = true;
         const currentItemData = currentItemRef.current;
-
-        // Debug logging
         console.log('🔄 handleAddItem called with:', {
             itemName: currentItemData.itemName,
             editingIndex,
@@ -2570,7 +2536,10 @@ function NewBooking() {
 
         // Better validation
         if (!currentItemData?.itemName?.trim()) {
-            safeToast.error("Please select an item first! ❌");
+            safeToast.error("Please select an item first! ❌", {
+                toastId: 'item-name-required'
+            });
+            isAddingItemRef.current = false;
             return;
         }
 
@@ -2579,18 +2548,20 @@ function NewBooking() {
         const quantity = Number(currentItemData.quantity);
 
         if (!rate || rate <= 0 || isNaN(rate)) {
-            safeToast.error("Please enter a valid rate! ❌");
+            safeToast.error("Please enter a valid rate! ❌", {
+                toastId: 'invalid-rate'
+            });
+            isAddingItemRef.current = false;
             return;
         }
 
         if (!quantity || quantity <= 0 || isNaN(quantity)) {
-            safeToast.error("Please enter a valid quantity! ❌");
+            safeToast.error("Please enter a valid quantity! ❌", {
+                toastId: 'invalid-quantity'
+            });
+            isAddingItemRef.current = false;
             return;
         }
-
-        // Set flag to prevent duplicates
-        isAddingItemRef.current = true;
-
         // Prepare the item object
         const newItem = {
             ...currentItemData,
@@ -2627,16 +2598,22 @@ function NewBooking() {
             itemDate: prev.itemDate, // Keep the same date
         }));
 
-        // Store whether we were editing for the toast message
+        // Store whether we were editing for the notification
         const wasEditing = editingIndex !== null;
         setEditingIndex(null);
 
-        // Show success message
+        // Show success message with unique ID
         setTimeout(() => {
             if (wasEditing) {
-                safeToast.success("Item updated successfully! ✅");
+                safeToast.success("Item updated successfully! ✅", {
+                    toastId: 'item-update-success',
+                    autoClose: 1500
+                });
             } else {
-                safeToast.success("Item added successfully! ✅");
+                safeToast.success("Item added successfully! ✅", {
+                    toastId: 'item-add-success',
+                    autoClose: 1500
+                });
             }
         }, 50);
 
@@ -2673,34 +2650,36 @@ function NewBooking() {
                 selectedMenus: item.selectedMenus || {},
                 cats: item.cats || [],
             });
-
             setEditingIndex(index);
-
             setTimeout(() => {
                 itemDetailsSectionRef.current?.scrollIntoView({
                     behavior: "smooth",
                     block: "center",
                 });
             }, 80);
-
-            safeToast.info(`Editing item: ${item.itemName} ✏️`);
+            safeToast.info(`Editing item: ${item.itemName} ✏️`, {
+                toastId: `edit-item-${index}`,
+                autoClose: 1500
+            });
         }
     }, [bookingData.itemDetails, setCurrentItem, safeToast]);
-
     const handleModifyMenus = useCallback((index) => {
         safeSessionStorage.setItem("scrollPosition", window.scrollY.toString());
 
         const item = bookingData.itemDetails[index];
         if (!item) {
-            safeToast.error("❌ Item not found!");
+            safeToast.error("❌ Item not found!", {
+                toastId: 'modify-menu-item-not-found'
+            });
             return;
         }
 
         const packId = item.PackageId || item.pack_id || item.itemPackage ||
             item.ItemPackageId || item.Package_ID || item.packageId || "";
-
         if (!packId) {
-            safeToast.error("❌ This item does not have a valid Package ID!");
+            safeToast.error("❌ This item does not have a valid Package ID!", {
+                toastId: 'modify-menu-no-package-id'
+            });
             return;
         }
 
@@ -2729,7 +2708,6 @@ function NewBooking() {
             });
         }, 50);
     }, [navigate, bookingData.itemDetails, safeToast]);
-
     // FIXED: handleDeleteItem - removed unnecessary receipts manipulation
     const handleDeleteItem = useCallback((index) => {
         setBookingData((prev) => {
@@ -2748,10 +2726,12 @@ function NewBooking() {
         console.log("✅ Item deleted successfully");
 
         setTimeout(() => {
-            safeToast.info("Item removed", { autoClose: 1000 });
+            safeToast.info("Item removed", {
+                autoClose: 1000,
+                toastId: `item-deleted-${index}`
+            });
         }, 100);
     }, [editingIndex, defaultItem, setBookingData, setCurrentItem, safeToast]);
-
     const handleRowDiscountChange = useCallback((index, value) => {
         const raw = Number(value);
         setBookingData((prev) => {
@@ -2774,7 +2754,12 @@ function NewBooking() {
         const preserveEditingBillId = editingBillId;
         const preserveCurrentReceipts = [...receipts];
 
-        // Clear only form data, not receipts
+        // Preserve enquiry data if coming from enquiry
+        const preserveEnquiryQuotId = enquiryQuotationId;
+        const preserveFromEnquiry = fromEnquiry;
+        const storedEnquiryMeta = sessionStorage.getItem('enquiryMeta');
+
+        // Clear only form data, not receipts or enquiry
         const itemsToRemove = [
             "bookingData", "currentItem", "partyId", "partyName", "partyPhone", "partyEmail",
             "functionId", "functionName", "companyId", "companyName", "venueId", "venueName",
@@ -2790,8 +2775,13 @@ function NewBooking() {
         setEditingIndex(null);
         setShowOtherAttendedBy(false);
         setOtherAttendedByValue("");
-        toast.info("form cleared Successfully", { toastId: 'clear-info' })
-        // 🔥 CRITICAL: Always preserve receipts in edit mode
+
+        safeToast.info("Form cleared successfully", {
+            toastId: 'form-clear-success',
+            autoClose: 2000
+        });
+
+        // Preserve receipts in edit mode
         if (preserveEditMode) {
             setReceipts(preserveCurrentReceipts);
             // Restore edit mode flags 
@@ -2810,6 +2800,29 @@ function NewBooking() {
             setReceipts([]);
         }
 
+        // Preserve enquiry data if coming from enquiry
+        if (preserveFromEnquiry || preserveEnquiryQuotId) {
+            setFromEnquiry(true);
+            sessionStorage.setItem('fromEnquiry', 'true');
+
+            if (preserveEnquiryQuotId) {
+                setEnquiryQuotationId(preserveEnquiryQuotId);
+                sessionStorage.setItem('enquiryQuotationId', preserveEnquiryQuotId);
+            }
+
+            if (storedEnquiryMeta) {
+                try {
+                    // Keep the enquiry meta in session storage
+                    const parsed = JSON.parse(storedEnquiryMeta);
+                    if (parsed.QuotationId) {
+                        setEnquiryQuotationId(parsed.QuotationId);
+                    }
+                } catch (err) {
+                    console.error("Error parsing stored enquiry meta:", err);
+                }
+            }
+        }
+
         // Reset user interaction flags
         userSetBookingToRef.current = false;
         userSetItemDateRef.current = false;
@@ -2817,12 +2830,16 @@ function NewBooking() {
         userSetBookingTimeRef.current = false;
         hasLoadedFromSessionRef.current = false;
 
-        console.log("🔄 Form reset, receipts preserved:", preserveCurrentReceipts.length);
+        console.log("🔄 Form reset", {
+            receiptsPreserved: preserveCurrentReceipts.length,
+            enquiryQuotId: preserveEnquiryQuotId,
+            fromEnquiry: preserveFromEnquiry
+        });
     }, [
         defaultBookingData, defaultItem, setBookingData,
-        setCurrentItem, isEditMode, editingQuotId, editingBillId, receipts
+        setCurrentItem, isEditMode, editingQuotId, editingBillId,
+        receipts, safeToast, enquiryQuotationId, fromEnquiry
     ]);
-
     // handleSubmit with proper bill preview navigation
 
 
@@ -3057,16 +3074,19 @@ function NewBooking() {
         return isEditMode ? "Modify Event" : "Save Event";
     };
 
-    // handleMakeReceipt with direct save
     const handleMakeReceipt = useCallback(() => {
         if (!editingQuotId) {
-            safeToast.error("No quotation in edit to make a receipt!");
+            safeToast.error("No quotation in edit to make a receipt!", {
+                toastId: 'no-quotation-receipt-error'
+            });
             return;
         }
 
         // Hard stop if bill is already fully received
         if (balanceAmount <= 0.01) {
-            safeToast.info("This bill is already fully received. You can't receive more.");
+            safeToast.info("This bill is already fully received. You can't receive more.", {
+                toastId: 'bill-fully-paid-info'
+            });
             return;
         }
 
@@ -3078,12 +3098,6 @@ function NewBooking() {
             location.state?.quotationMeta?.PartyId ||
             location.state?.quotationMeta?.party_id ||
             "";
-
-        if (!partyLedgerId) {
-            console.warn("⚠️ No party ledger id found while making receipt");
-        } else {
-            console.log("✅ Using partyLedgerId for receipt:", partyLedgerId);
-        }
 
         // Pass bill/received/balance meta down to dialog
         setReceiptDialogMeta({
@@ -3105,41 +3119,49 @@ function NewBooking() {
     // handleMakeInvoice with direct save and navigation
     const handleMakeInvoice = useCallback(() => {
         if (!editingQuotId) {
-            safeToast.error("No quotation in edit to make an invoice!");
+            safeToast.error("No quotation in edit to make an invoice!", {
+                toastId: 'no-quotation-error'
+            });
             return;
         }
 
         // Show different message for modification vs creation
         if (editingBillId) {
-            safeToast.info("Modifying existing invoice...");
+            safeToast.info("Modifying existing invoice...", {
+                toastId: 'modify-invoice-info',
+                autoClose: 2000
+            });
         } else {
-            safeToast.info("Creating new invoice...");
+            safeToast.info("Creating new invoice...", {
+                toastId: 'create-invoice-info',
+                autoClose: 2000
+            });
         }
 
-        // 🔥 ADD: Validate form before opening dialog
+        // Validate form before opening dialog
         if (!validateForm()) {
-            safeToast.error("Please fix form errors before creating invoice");
+            safeToast.error("Please fix form errors before creating invoice", {
+                toastId: 'form-validation-error'
+            });
             return;
         }
 
         setOpenInvoiceDialog(true);
     }, [editingQuotId, editingBillId, validateForm, safeToast]);
-
-
+    // Keyboard event handlers with proper cleanup
     useEffect(() => {
+        let isProcessing = false;
+
         const handleKeyDown = (event) => {
-            console.log('Key pressed:', event.key, 'isDirty:', isDirty);
+            // Prevent processing if already handling an event
+            if (isProcessing) return;
+
+            // Prevent multiple handlers from firing
+            if (event.repeat) return;
 
             // Handle Escape key
             if (event.key === 'Escape') {
-                console.log('Escape pressed - Checking dialogs:', {
-                    openConfirm,
-                    openSaveConfirm,
-                    openPrintConfirm,
-                    deleteReceiptConfirmOpen: deleteReceiptConfirm.open,
-                    openInvoiceDialog,
-                    openReceiptDialog
-                });
+                isProcessing = true;
 
                 // Check if ANY dialog is currently open
                 const isAnyDialogOpen =
@@ -3150,79 +3172,96 @@ function NewBooking() {
                     openInvoiceDialog ||
                     openReceiptDialog;
 
-                console.log('Is any dialog open?', isAnyDialogOpen);
-
                 // If NO dialog is open AND form has changes, show confirmation
                 if (!isAnyDialogOpen && isDirty) {
                     console.log('Showing confirmation dialog');
-                    setOpenConfirm(true);
                     event.preventDefault();
                     event.stopPropagation();
+                    setOpenConfirm(true);
+                    isProcessing = false;
                     return;
                 }
 
                 // Close the currently open dialog (in order of priority)
                 if (openConfirm) {
                     console.log('Closing openConfirm dialog');
-                    setOpenConfirm(false);
                     event.preventDefault();
+                    event.stopPropagation();
+                    setOpenConfirm(false);
                 } else if (openSaveConfirm) {
                     console.log('Closing openSaveConfirm dialog');
-                    setOpenSaveConfirm(false);
                     event.preventDefault();
+                    event.stopPropagation();
+                    setOpenSaveConfirm(false);
                 } else if (openPrintConfirm) {
                     console.log('Closing openPrintConfirm dialog');
-                    setOpenPrintConfirm(false);
                     event.preventDefault();
+                    event.stopPropagation();
+                    setOpenPrintConfirm(false);
                 } else if (deleteReceiptConfirm.open) {
                     console.log('Closing deleteReceiptConfirm dialog');
-                    setDeleteReceiptConfirm({ open: false, receipt: null });
                     event.preventDefault();
+                    event.stopPropagation();
+                    setDeleteReceiptConfirm({ open: false, receipt: null });
                 } else if (openInvoiceDialog) {
                     console.log('Closing openInvoiceDialog');
+                    event.preventDefault();
+                    event.stopPropagation();
                     setOpenInvoiceDialog(false);
                     setInvoiceWithPrint(false);
-                    event.preventDefault();
                 } else if (openReceiptDialog) {
                     console.log('Closing openReceiptDialog');
-                    setOpenReceiptDialog(false);
                     event.preventDefault();
+                    event.stopPropagation();
+                    setOpenReceiptDialog(false);
                 }
+
+                setTimeout(() => {
+                    isProcessing = false;
+                }, 100);
             }
 
             // Handle Enter key
             else if (event.key === 'Enter') {
-                console.log('Enter pressed - Checking dialogs');
+                isProcessing = true;
 
+                // Only prevent default in specific dialog contexts
                 if (openConfirm) {
                     console.log('Confirming back navigation');
-                    handleBackNavigation();
                     event.preventDefault();
+                    event.stopPropagation();
+                    handleBackNavigation();
                 } else if (openSaveConfirm) {
                     console.log('Confirming save');
-                    handleSaveConfirm();
                     event.preventDefault();
+                    event.stopPropagation();
+                    handleSaveConfirm();
                 } else if (openPrintConfirm) {
                     console.log('Confirming print');
-                    handlePrintConfirm();
                     event.preventDefault();
+                    event.stopPropagation();
+                    handlePrintConfirm();
                 } else if (deleteReceiptConfirm.open) {
                     console.log('Confirming receipt deletion');
-                    confirmDeleteReceipt();
                     event.preventDefault();
+                    event.stopPropagation();
+                    confirmDeleteReceipt();
                 }
+
+                setTimeout(() => {
+                    isProcessing = false;
+                }, 100);
             }
         };
 
-        // Add the event listener
-        window.addEventListener('keydown', handleKeyDown);
+        // Add the event listener with capture phase
+        window.addEventListener('keydown', handleKeyDown, { capture: true });
 
         // Clean up on unmount
         return () => {
-            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keydown', handleKeyDown, { capture: true });
         };
     }, [
-        // Add ALL state and function dependencies here:
         openConfirm,
         openSaveConfirm,
         openPrintConfirm,
@@ -3242,50 +3281,80 @@ function NewBooking() {
         setOpenSaveConfirm,
         setOpenPrintConfirm
     ]);
+    // Function key handlers with debouncing
     useEffect(() => {
+        let lastFunctionKeyPress = 0;
+        let isProcessing = false;
+
         const handleFunctionKeys = (e) => {
             // Check if F1-F12 keys are pressed
             if (e.key.startsWith('F')) {
+                // Prevent multiple rapid presses
+                const now = Date.now();
+                if (now - lastFunctionKeyPress < 500 || isProcessing) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+
+                lastFunctionKeyPress = now;
+                isProcessing = true;
+
                 e.preventDefault(); // Prevent browser default behavior
+                e.stopPropagation(); // Stop event bubbling
 
                 switch (e.key) {
                     case 'F2':
+                        console.log('F2 - Save clicked');
                         handleSaveClick();
                         break;
                     case 'F1':
+                        console.log('F1 - Reset clicked');
                         handleReset();
                         break;
                     case 'F3':
+                        console.log('F3 - Item page');
                         handleItemPage();
                         break;
                     case 'F4':
+                        console.log('F4 - Make invoice');
                         if (isEditMode) handleMakeInvoice();
                         break;
                     case 'F5':
+                        console.log('F5 - Make receipt');
                         if (isEditMode) handleMakeReceipt();
                         break;
                     case 'F6':
+                        console.log('F6 - New party');
                         handleNewParty();
                         break;
                     case 'F7':
+                        console.log('F7 - New company');
                         handleNewCompany();
                         break;
                     case 'F8':
+                        console.log('F8 - New function');
                         handleNewFunction();
                         break;
                     case 'F9':
+                        console.log('F9 - Serving names');
                         handleServingNames();
                         break;
                     default:
                         break;
                 }
+
+                // Reset processing flag after delay
+                setTimeout(() => {
+                    isProcessing = false;
+                }, 300);
             }
         };
 
-        document.addEventListener('keydown', handleFunctionKeys);
+        document.addEventListener('keydown', handleFunctionKeys, { capture: true });
 
         return () => {
-            document.removeEventListener('keydown', handleFunctionKeys);
+            document.removeEventListener('keydown', handleFunctionKeys, { capture: true });
         };
     }, [
         handleSaveClick,
@@ -4025,13 +4094,13 @@ function NewBooking() {
                     display: flex;
                     align-items: center;
                     gap: 8px;
-                    padding: 12px;
+                    padding: 6px;
                     background: #fef2f2;
                     border: 1px solid #fecaca;
                     border-radius: 6px;
                     color: #dc2626;
                     font-size: 14px;
-                    margin-top: 12px;
+                    margin-top: 8px;
                     grid-column: 1 / -1;
                 }
 
@@ -4088,35 +4157,13 @@ function NewBooking() {
     color: #dc3545 !important;
 }
 
-/* Date picker error styles */
-.Mui-error .MuiOutlinedInput-root {
-    animation: shake 0.5s ease-in-out;
-}
-
-/* Section error highlighting */
-.section-error-highlight {
-    border: 2px solid #dc3545 !important;
-    border-radius: 8px !important;
-    padding: 12px !important;
-    background-color: #fff5f5 !important;
-    animation: pulse-error 2s infinite !important;
-}
-
-/* Red border for dropdowns and inputs */
-select.field-error-highlight,
-input.field-error-highlight,
-textarea.field-error-highlight {
-    border: 2px solid #dc3545 !important;
-    border-radius: 4px !important;
-    background-color: #fff5f5 !important;
-}
 
 /* Error message styling */
 .error-message-container {
     background-color: #f8d7da;
     border: 1px solid #f5c6cb;
     border-radius: 4px;
-    padding: 8px 12px;
+    padding: 6px 8px;
     margin-top: 5px;
     color: #721c24;
     font-size: 14px;
@@ -4140,7 +4187,7 @@ textarea.field-error-highlight {
 .item-details-container.field-error-highlight {
     border: 2px solid #dc3545 !important;
     border-radius: 8px !important;
-    padding: 15px !important;
+    padding: 5px !important;
     background-color: #fff5f5 !important;
     animation: pulse-error 2s ease-in-out !important;
 }

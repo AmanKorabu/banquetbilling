@@ -11,7 +11,7 @@ function PartySearch() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  
+  const [enquiryPage, setEnquiryPage] = useState(false);
   // Ref for state to avoid stale closures in keyboard events
   const stateRefs = useRef({
     openConfirm: false,
@@ -91,11 +91,21 @@ function PartySearch() {
 
   // Back button handlers
   const handleBackClick = useCallback(() => setOpenConfirm(true), []);
-  
+  useEffect(() => {
+    const stored = sessionStorage.getItem("fromEnquiry");
+    if (stored === 'true') {
+      setEnquiryPage(true);
+    }
+  }, []);
   const handleConfirm = useCallback(() => {
     setOpenConfirm(false);
-    navigate("/new-booking");
-  }, [navigate]);
+    navigate("/new-booking", {
+      state: {
+        ...(enquiryPage && { fromEnquiry: true }),
+      },
+    }
+    );
+  }, [navigate, enquiryPage]);
 
   const handleCancel = useCallback(() => setOpenConfirm(false), []);
 
@@ -131,12 +141,13 @@ function PartySearch() {
     // ✅ Navigate back to NewBooking
     navigate("/new-booking", {
       state: {
+        ...(enquiryPage && { fromEnquiry: true }),
         selectedParty: party,
         partyId,
         partyName,
       },
     });
-  }, [navigate]);
+  }, [navigate, enquiryPage]);
 
   const handleAddNew = useCallback(() => {
     navigate("/new-party", {
@@ -147,7 +158,7 @@ function PartySearch() {
   // Handle keyboard events
   const handleKeyDown = useCallback((event) => {
     const currentState = stateRefs.current;
-    
+
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -159,14 +170,14 @@ function PartySearch() {
         // If no dialog open, show confirmation
         setOpenConfirm(true);
       }
-    } 
+    }
     else if (event.key === 'Enter') {
       event.preventDefault();
-      
+
       if (currentState.openConfirm) {
         // If confirmation dialog is open, confirm the action
         handleConfirm();
-      } 
+      }
       else if (currentState.parties.length > 0 && !currentState.loading) {
         // If there are parties and Enter is pressed, select the first party
         const firstParty = currentState.parties[0];
@@ -303,7 +314,7 @@ function PartySearch() {
             </thead>
             <tbody>
               {parties.map((party, index) => (
-                <tr 
+                <tr
                   key={party.LedgerId || party.id || index}
                   className={index === 0 ? "first-party-row" : ""}
                 >
@@ -332,22 +343,22 @@ function PartySearch() {
               )}
             </tbody>
           </table>
-          
+
           {/* Keyboard shortcuts help */}
           {parties.length > 0 && (
-            <div style={{ 
-              marginTop: '10px', 
-              fontSize: '12px', 
+            <div style={{
+              marginTop: '10px',
+              fontSize: '12px',
               color: '#666',
               textAlign: 'center',
               padding: '5px',
               border: '1px dashed #ccc',
               borderRadius: '4px'
             }}>
-              💡 <strong>Keyboard Shortcuts:</strong> 
-              <kbd>Esc</kbd> Back • 
-              <kbd>Enter</kbd> Select First • 
-              <kbd>F2</kbd> Select First • 
+              💡 <strong>Keyboard Shortcuts:</strong>
+              <kbd>Esc</kbd> Back •
+              <kbd>Enter</kbd> Select First •
+              <kbd>F2</kbd> Select First •
               <kbd>F3</kbd> Add New
             </div>
           )}
