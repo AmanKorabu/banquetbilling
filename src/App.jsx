@@ -22,6 +22,20 @@ import UnsettledBill from "./screens/UnsettledBill";
 
 import { NotifyProvider } from "./context/NotifyProvider";
 import UpcomingEvents from "./screens/UpcomingEvents";
+import Company from "./screens/master-screens/Company";
+import SectionMaster from "./screens/master-screens/SectionMaster";
+import ItemGroup from "./screens/master-screens/ItemGroup";
+import MasterServing from "./screens/master-screens/MasterServing";
+import Category from "./screens/master-screens/Category";
+import SubCategory from "./screens/master-screens/SubCategory";
+import SalesItem from "./screens/master-screens/SalesItem";
+import Paymode from "./screens/master-screens/Paymode";
+import MenuRateChange from "./screens/master-screens/MenuRateChange";
+import StatusMaster from "./screens/master-screens/StatusMaster";
+import EventMaster from "./screens/master-screens/EventMaster";
+import FunctionMaster from "./screens/master-screens/FunctionMaster";
+import PackageMaster from "./screens/master-screens/PackageMaster";
+import ItemPackageMaster from "./screens/master-screens/ItemPackageMaster";
 
 // ⚡ Lazy load heavy pages only
 const MainDashboard = lazy(() => import("./screens/MainDashboard"));
@@ -37,7 +51,6 @@ const NewFunction = lazy(() => import("./screens/NewFunction"));
 const NewServing = lazy(() => import("./screens/NewServing"));
 const Items = lazy(() => import("./screens/Items"));
 const ItemsMenu = lazy(() => import("./screens/ItemsMenu"));
-const Company = lazy(() => import("./screens/Company"));
 const DeletedCompanies = lazy(() => import("./screens/DeletedCompanies"));
 const QuotationPreview = lazy(() => import("./screens/QuotationPreview"));
 const DemoBillList = lazy(() => import("./screens/DemoBillList"));
@@ -76,7 +89,6 @@ function App() {
         <Route path="/search-serving" element={<ProtectedRoute><NewServing /></ProtectedRoute>} />
         <Route path="/items" element={<ProtectedRoute><Items /></ProtectedRoute>} />
         <Route path="/item-menu" element={<ProtectedRoute><ItemsMenu /></ProtectedRoute>} />
-        <Route path="/company-section" element={<ProtectedRoute><Company /></ProtectedRoute>} />
         <Route path="/deleted-company" element={<ProtectedRoute><DeletedCompanies /></ProtectedRoute>} />
         <Route path="/quote-list" element={<ProtectedRoute><DemoBillList /></ProtectedRoute>} />
         <Route path="/deleted-quotes" element={<ProtectedRoute><DeletedQuotList /></ProtectedRoute>} />
@@ -87,6 +99,21 @@ function App() {
         <Route path="/make-receipt" element={<ProtectedRoute><MakeReceipt /></ProtectedRoute>} />
         <Route path="/calender-view" element={<ProtectedRoute><CalenderView /></ProtectedRoute>} />
         <Route path="/upcoming-events" element={<ProtectedRoute><UpcomingEvents /></ProtectedRoute>} />
+        {/* master screens */}
+        <Route path="/master-company" element={<ProtectedRoute><Company /></ProtectedRoute>} />
+        <Route path="/section-master" element={<ProtectedRoute><SectionMaster /></ProtectedRoute>} />
+        <Route path="/item-group" element={<ProtectedRoute><ItemGroup /></ProtectedRoute>} />
+        <Route path="/master-serving" element={<ProtectedRoute><MasterServing /></ProtectedRoute>} />
+        <Route path="/master-category" element={<ProtectedRoute><Category /></ProtectedRoute>} />
+        <Route path="/master-sub-category" element={<ProtectedRoute><SubCategory /></ProtectedRoute>} />
+        <Route path="/master-sales-item" element={<ProtectedRoute><SalesItem /></ProtectedRoute>} />
+        <Route path="/paymode" element={<ProtectedRoute><Paymode /></ProtectedRoute>} />
+        <Route path="/menu-rate-change" element={<ProtectedRoute><MenuRateChange /></ProtectedRoute>} />
+        <Route path="/status-master" element={<ProtectedRoute><StatusMaster /></ProtectedRoute>} />
+        <Route path="/event-master" element={<ProtectedRoute><EventMaster /></ProtectedRoute>} />
+        <Route path="/function-master" element={<ProtectedRoute><FunctionMaster /></ProtectedRoute>} />
+        <Route path="/package-master" element={<ProtectedRoute><PackageMaster /></ProtectedRoute>} />
+        <Route path="/item-package-master" element={<ProtectedRoute><ItemPackageMaster /></ProtectedRoute>} />
       </Routes>
     ),
     []

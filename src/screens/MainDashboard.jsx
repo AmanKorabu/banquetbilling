@@ -10,6 +10,7 @@ import CountUp from 'react-countup';
 import Header from './Header';
 import { useEffect, useState } from "react";
 import { BellIcon } from "lucide-react";
+import MasterScreen from "../components/ReusableCompnents/MasterScreen";
 
 function MainDashboard() {
   const navigate = useNavigate();
@@ -320,7 +321,9 @@ function MainDashboard() {
             </div>
           ))}
         </div>
+       
       </div>
+      
 
       <style>{`
   /* =========================================
