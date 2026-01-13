@@ -250,24 +250,7 @@ function NewParty() {
         
         showSnackbar('✅ Party saved successfully!', 'success');
         
-        // Log all stored data for debugging
-        console.log('📦 Party data saved:', {
-          required: { partyName: savedParty.LedgerName },
-          optional: {
-            phone: savedParty.MobileNo,
-            email: savedParty.EmailId,
-            address: savedParty.Address_line1,
-            city: savedParty.City,
-            state: savedParty.State,
-            country: savedParty.Country,
-            zipcode: savedParty.Zipcode,
-            alternateContacts: {
-              phone1: savedParty.AltMobileNo1,
-              phone2: savedParty.AltMobileNo2,
-              email: savedParty.AltEmailId
-            }
-          }
-        });
+      
         
         setTimeout(() => {
           navigate("/new-booking", {

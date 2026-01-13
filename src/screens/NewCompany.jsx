@@ -45,11 +45,11 @@ function NewCompany() {
           return;
         }
 
-        console.log("🔍 Searching companies with term:", search);
+      
 
         // Use the centralized API function
         const response = await bookingApi.searchCompanies(search);
-        console.log("📦 API Response:", response);
+        
 
         // Handle different response structures
         if (Array.isArray(response)) {
@@ -115,7 +115,7 @@ function NewCompany() {
 
   // Handle company selection
   const handleSelect = useCallback((company) => {
-    console.log("✅ Selected company:", company);
+    
 
     // Save selected company details to sessionStorage
     sessionStorage.setItem("selectedCompany", JSON.stringify(company));

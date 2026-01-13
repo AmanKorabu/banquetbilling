@@ -28,25 +28,18 @@ function ItemsMenu() {
 
 
   // 🔹 Debug logging
-  useEffect(() => {
-    console.log('🎯 ItemsMenu mounted with state:', {
-      selectedItem,
-      isEditingMenus,
-      editingIndex,
-      previousMenus
-    });
-  }, [selectedItem, isEditingMenus, editingIndex, previousMenus]);
+
 
   // 🔹 Fetch menus from API
   useEffect(() => {
     const fetchMenus = async () => {
       if (!selectedItem?.PackageId) {
-        console.log('❌ No PackageId found, returning early');
+        
         return;
       }
 
       try {
-        console.log('📦 Fetching menus for PackageId:', selectedItem.PackageId);
+       
         const response = await axios.get(
           "/banquetapi/get_pack_menus_disp.php",
           {
@@ -59,7 +52,6 @@ function ItemsMenu() {
           }
         );
 
-        console.log('✅ Menu API response:', response.data);
 
         if (response.data.category && Array.isArray(response.data.category)) {
           // Filter out categories with CatSrNo "1" only and remove "OTHER" menu items
@@ -72,7 +64,7 @@ function ItemsMenu() {
             .filter(cat => cat.menus.length > 0); // Only keep categories that have menus
 
           setCategories(filteredCategories);
-          console.log('📋 Filtered categories set:', filteredCategories);
+         
         } else {
           setCategories([]);
         }
@@ -90,7 +82,7 @@ function ItemsMenu() {
     try {
       setLoadingOther(true);
 
-      console.log("📦 Using category menus as default items:", category.menus);
+   
 
       // These are already default items from API 1
       let defaultMenus = category.menus || [];
@@ -128,7 +120,6 @@ function ItemsMenu() {
       setDefaultItems(merged);
       setOtherItems(merged);
 
-      console.log("✅ Loaded default menus:", merged);
 
     } catch (e) {
       console.error("❌ Default items error:", e);
@@ -146,10 +137,7 @@ function ItemsMenu() {
       setLoadingOther(true);
       const hotelId = localStorage.getItem("hotel_id") || "";
 
-      console.log('🔍 Fetching all other items for category:', {
-        category: category.CategoryName,
-        search
-      });
+    
 
       const response = await axios.get(
         "/banquetapi/search_menu_new2.php",
@@ -163,7 +151,7 @@ function ItemsMenu() {
         }
       );
 
-      console.log("✅ All other items response:", response.data);
+
 
       let items = [];
       if (response.data?.result && Array.isArray(response.data.result)) {
@@ -185,7 +173,7 @@ function ItemsMenu() {
       );
 
       setOtherItems(uniqueItems);
-      console.log(`📦 Loaded ${uniqueItems.length} other items`);
+     
 
     } catch (error) {
       console.error("❌ Error fetching other items:", error);
@@ -238,7 +226,7 @@ function ItemsMenu() {
 
   // 🔹 Open popup for "Other" selection
   const handleOtherClick = useCallback((category) => {
-    console.log("🔄 Opening other popup for category:", category.CategoryName);
+   
     setCurrentCategory(category);
     setShowOtherPopup(true);
     setSearchTerm("");
@@ -396,7 +384,6 @@ function ItemsMenu() {
     if (!allSelected) return;
     setLoading(true);
 
-    console.log('💾 Saving menus, isEditingMenus:', isEditingMenus);
 
     const packageRate = parseFloat(selectedItem?.Rate || 0);
     const gstRate = parseFloat(selectedItem?.TaxPer || 0);
@@ -414,7 +401,6 @@ function ItemsMenu() {
       updatedMenus: selectedMenus,
     };
 
-    console.log('📤 Navigating back with:', bookingData);
     const navState = {
       ...bookingData,
       ...(enquiryPage ? { fromEnquiry: true } : {}),

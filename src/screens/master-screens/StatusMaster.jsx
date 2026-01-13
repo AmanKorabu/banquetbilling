@@ -30,6 +30,13 @@ const StatusMaster = () => {
 
     const onFinish = (values) => {
         console.log(values);
+        const payload = {
+            statusName: values.statusName,
+            bookingStatus: values.bookingStatus ? 1 : 0,
+            menuStatus: values.menuStatus ? 1 : 0,
+            eventStatus: values.eventStatus ? 1 : 0,
+        }
+        console.log(payload);
         form.resetFields()
         setOpen(false)
     }
@@ -56,20 +63,25 @@ const StatusMaster = () => {
                     scrollToFirstError={{ block: 'center', behavior: 'smooth' }}
                 >
                     <Form.Item
-                        label='Status Name'
+
                         name='statusName'
                         rules={[{ required: true, message: 'Status name required' }]}>
                         <Input />
                     </Form.Item>
                     <Form.Item
-                        name='status'
+                        name='bookingStatus' valuePropName='checked'
                     >
-                        <Checkbox.Group>
-                            <Checkbox value='booking_status'>Booking Status</Checkbox>
-                            <Checkbox value='menu_status'>Menu Status</Checkbox>
-                            <Checkbox value='event_status'>Event Status</Checkbox>
-                        </Checkbox.Group>
-
+                        <Checkbox> Booking Status</Checkbox>
+                    </Form.Item>
+                    <Form.Item
+                        name='menuStatus' valuePropName='checked'
+                    >
+                        <Checkbox> Menu Status</Checkbox>
+                    </Form.Item>
+                    <Form.Item
+                        name='eventStatus' valuePropName='checked'
+                    >
+                        <Checkbox> Event Status</Checkbox>
                     </Form.Item>
                 </Form>
 

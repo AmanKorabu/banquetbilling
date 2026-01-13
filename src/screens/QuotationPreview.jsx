@@ -46,21 +46,16 @@ const QuotationPreview = () => {
 
       if (data.result && data.result.length > 0) {
         setQuotationData(data);
-        console.log("🔍 Full Quotation API Response:", data);
-        
+
+
         const mainData = data.result[0];
         const events = data.events || [];
         const allItems = events.flatMap(event => event.items_arr || []);
-        
-        console.log("🔍 Main Data:", mainData);
-        console.log("🔍 Events:", events);
-        console.log("🔍 All Items:", allItems);
-        console.log("🔍 Receipts:", data.receipts || []);
+
+
 
         const calculatedSubTotal = allItems.reduce((sum, item) =>
           sum + (parseFloat(item.Quantity || 0) * parseFloat(item.Rate || 0)), 0);
-        console.log("🔍 Calculated SubTotal from items:", calculatedSubTotal);
-        console.log("🔍 API SubTotal:", mainData.SubtotalAll || mainData.SubTotalAll || mainData.SubTotal);
 
       } else {
         toast.error("Quotation not found");
@@ -85,7 +80,7 @@ const QuotationPreview = () => {
       toast.info("Generating PDF...");
 
       const quotationElement = document.getElementById('quotation-print');
-      
+
       // Generate high-quality canvas
       const canvas = await html2canvas(quotationElement, {
         scale: 2,
@@ -101,15 +96,15 @@ const QuotationPreview = () => {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      
+
       // Calculate dimensions to fit PDF page
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
       const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
       const imgX = (pdfWidth - imgWidth * ratio) / 2;
-      
+
       pdf.addImage(canvas, 'JPEG', imgX, 0, imgWidth * ratio, imgHeight * ratio);
-      
+
       // Generate PDF as blob
       const pdfBlob = pdf.output('blob');
       await sharePDFViaWhatsApp(pdfBlob);
@@ -124,14 +119,14 @@ const QuotationPreview = () => {
 
   const sharePDFViaWhatsApp = async (pdfBlob) => {
     const mainData = quotationData.result[0];
-    
+
     // Create file object
     const pdfFile = new File([pdfBlob], `quotation_${mainData.QuotationNo || quot_id}.pdf`, {
       type: 'application/pdf'
     });
 
     // Create message
-    const message = 
+    const message =
       `*XPRESS BANQUET - QUOTATION*\n\n` +
       `Guest: ${mainData.PartyName}\n` +
       `Function: ${mainData.FunctionName}\n` +
@@ -152,7 +147,7 @@ const QuotationPreview = () => {
         toast.success("PDF shared successfully via WhatsApp!");
         return;
       } catch (shareError) {
-        console.log("Native share failed:", shareError);
+        toast.error("Native share failed:", shareError);
       }
     }
 
@@ -160,10 +155,10 @@ const QuotationPreview = () => {
     const pdfUrl = URL.createObjectURL(pdfBlob);
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/91${whatsappNumber}?text=${encodedMessage}`;
-    
+
     // Open WhatsApp
     window.open(whatsappUrl, '_blank');
-    
+
     // Auto-download the PDF for manual attachment
     setTimeout(() => {
       const downloadLink = document.createElement('a');
@@ -172,10 +167,10 @@ const QuotationPreview = () => {
       document.body.appendChild(downloadLink);
       downloadLink.click();
       document.body.removeChild(downloadLink);
-      
+
       toast.info(
         <div>
-          PDF downloaded. Please attach it manually to WhatsApp.<br/>
+          PDF downloaded. Please attach it manually to WhatsApp.<br />
           <small>File: quotation_{mainData.QuotationNo || quot_id}.pdf</small>
         </div>,
         { autoClose: 5000 }
@@ -199,14 +194,14 @@ const QuotationPreview = () => {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      
+
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
       const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
       const imgX = (pdfWidth - imgWidth * ratio) / 2;
-      
+
       pdf.addImage(canvas, 'JPEG', imgX, 0, imgWidth * ratio, imgHeight * ratio);
-      
+
       const mainData = quotationData.result[0];
       pdf.save(`quotation_${mainData.QuotationNo || quot_id}.pdf`);
       toast.success("PDF downloaded successfully!");
@@ -226,7 +221,7 @@ const QuotationPreview = () => {
     }
 
     const mainData = quotationData.result[0];
-    const message = 
+    const message =
       `*XPRESS BANQUET - QUOTATION*\n\n` +
       `Guest: ${mainData.PartyName}\n` +
       `Function: ${mainData.FunctionName}\n` +
@@ -450,7 +445,7 @@ const QuotationPreview = () => {
   const receipts = quotationData.receipts || [];
 
   // 🔥 CRITICAL FIX: Calculate total received amount from receipts
-  const totalReceived = receipts.reduce((sum, receipt) => 
+  const totalReceived = receipts.reduce((sum, receipt) =>
     sum + (Number(receipt.Amount) || 0), 0
   );
 
@@ -460,7 +455,7 @@ const QuotationPreview = () => {
     if (receipts.length > 0) {
       return totalReceived;
     }
-    
+
     // Fallback to API fields if no receipts
     const raw =
       mainData.ReceivedAmount ??
@@ -482,20 +477,6 @@ const QuotationPreview = () => {
   // Enhanced remaining balance calculation
   const remainingBalance = grandTotal - advanceReceived - tds;
 
-  console.log("💰 QUOTATION FINAL CALCULATIONS:", {
-    calculatedSubTotal,
-    apiSubTotal,
-    finalSubTotal: subTotal,
-    calculatedGrandTotal,
-    apiGrandTotal,
-    finalGrandTotal: grandTotal,
-    receiptsCount: receipts.length,
-    totalReceivedFromReceipts: totalReceived,
-    advanceReceived,
-    tds,
-    remainingBalance,
-    groupedItems,
-  });
 
   return (
     <div className="preview-container">
@@ -534,7 +515,7 @@ const QuotationPreview = () => {
               className="btn-whatsapp-pdf"
               disabled={generatingPDF || !whatsappNumber}
             >
-              <FaFilePdf /> 
+              <FaFilePdf />
               {generatingPDF ? "Generating..." : "SHARE PDF"}
             </button>
             <button
@@ -824,10 +805,10 @@ const QuotationPreview = () => {
           <div className="closing">
             <p className="thank-you">Thank You! Visit Again!</p>
             <p className="print-date">
-              {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString('en-IN', { 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                hour12: true 
+              {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString('en-IN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
               })}
             </p>
           </div>

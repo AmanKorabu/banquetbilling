@@ -33,6 +33,7 @@ import bookingApi from "../services/bookingApi";
 import MakeInvoiceDialog from "../components/MakeInvoiceDialog";
 import MakeReceiptDialog from "../components/MakeReceiptDialog";
 import ReceiptPrintDialog from "../components/ReceiptPrintDialog";
+import { message } from "antd";
 
 /* ----------------------- Safe Session Storage ------------------------ */
 /* ----------------------- Safe Session Storage ------------------------ */
@@ -310,7 +311,7 @@ function NewBooking() {
     // Was this booking started from Enquiry?
     // Was this booking started from Enquiry?
     useEffect(() => {
-        console.log("🔍 Checking if booking is from enquiry...");
+
 
         // Get data from session storage first
         const storedEnquiryMeta = sessionStorage.getItem('enquiryMeta');
@@ -328,13 +329,6 @@ function NewBooking() {
 
         const enquiryMetaFromLocation = locationState.enquiryMeta;
 
-        console.log("📋 Enquiry data found:", {
-            locationEnquiry,
-            hasLocationMeta: !!enquiryMetaFromLocation,
-            storedFromEnquiry,
-            hasStoredMeta: !!storedEnquiryMeta,
-            storedEnquiryQuotId
-        });
 
         // Determine if we're from enquiry
         const isFromEnquiry = locationEnquiry || storedFromEnquiry === 'true';
@@ -346,7 +340,7 @@ function NewBooking() {
         if (enquiryMetaFromLocation && enquiryMetaFromLocation.QuotationId) {
             // From location state
             quotIdToSet = enquiryMetaFromLocation.QuotationId;
-            console.log("✅ Using QuotationId from location state:", quotIdToSet);
+
 
             // Store in session for persistence
             sessionStorage.setItem('enquiryMeta', JSON.stringify(enquiryMetaFromLocation));
@@ -358,7 +352,6 @@ function NewBooking() {
                 const parsed = JSON.parse(storedEnquiryMeta);
                 if (parsed.QuotationId) {
                     quotIdToSet = parsed.QuotationId;
-                    console.log("✅ Using QuotationId from session storage:", quotIdToSet);
                 }
             } catch (err) {
                 console.error("❌ Error parsing stored enquiry meta:", err);
@@ -366,17 +359,13 @@ function NewBooking() {
         } else if (storedEnquiryQuotId) {
             // Direct ID from session storage
             quotIdToSet = storedEnquiryQuotId;
-            console.log("✅ Using enquiryQuotationId from session storage:", quotIdToSet);
         }
 
         if (quotIdToSet) {
             setEnquiryQuotationId(quotIdToSet);
         }
 
-        console.log("📊 Final enquiry status:", {
-            fromEnquiry: isFromEnquiry,
-            enquiryQuotationId: quotIdToSet
-        });
+
     }, [location]);
     // Where should "Back" go to?
     const [backToPath, setBackToPath] = useState(() => {
@@ -493,7 +482,6 @@ function NewBooking() {
 
                 const apiUrl = `/banquetapi/get_receipt_details.php?hotel_id=${hotelId}&vo_id=${receipt.VoucherId}&quot_id=${editingQuotId || ""}`;
 
-                console.log("📡 Fetch receipt for print:", apiUrl);
                 const res = await fetch(apiUrl);
                 if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
@@ -718,14 +706,14 @@ function NewBooking() {
 
         // Preserve receipts if in edit mode
         if (isEditMode && editingQuotId) {
-            console.log("💾 Preserving receipts during clear");
+
             const currentReceipts = safeSessionStorage.getReceipts(editingQuotId);
             if (currentReceipts) {
-                console.log("📋 Receipts preserved for edit mode");
+                message.info("📋 Receipts preserved for edit mode");
             }
         }
 
-        console.log("🧹 Cleared non-receipt session data");
+
     }, [isEditMode]);
 
     const refreshReceipts = useCallback(async () => {
@@ -735,7 +723,7 @@ function NewBooking() {
             if (!hotelId) return;
 
             const apiUrl = `/banquetapi/get_quot_details.php?quot_id=${editingQuotId}&hotel_id=${hotelId}`;
-            console.log("📡 Refresh receipts only:", apiUrl);
+
             const res = await fetch(apiUrl);
             const data = await res.json();
 
@@ -743,7 +731,7 @@ function NewBooking() {
             setReceipts(newReceipts);
             safeSessionStorage.setReceipts(editingQuotId, newReceipts);
 
-            console.log("✅ Receipts refreshed:", newReceipts.length);
+
         } catch (err) {
             console.error("❌ Error refreshing receipts:", err);
         }
@@ -758,7 +746,6 @@ function NewBooking() {
         if (fromCalendarDate && !isEditMode) {
             const clicked = dayjs(fromCalendarDate);
             if (clicked.isValid()) {
-                console.log("📅 Applying calendar date during state init:", clicked.format("YYYY-MM-DD"));
 
                 // Preserve time from defaults
                 const fromTimeBase = dayjs(initial.bookingFromTime || initial.bookingFromDate);
@@ -783,7 +770,7 @@ function NewBooking() {
                 console.warn("❌ Invalid fromCalendarDate during init:", fromCalendarDate);
             }
         } else {
-            console.log("🔄 No calendar date in state during init, using defaults");
+            console.warn("🔄 No calendar date in state during init, using defaults");
         }
 
         // Load from sessionStorage (if any), but prioritize calendar date
@@ -818,7 +805,6 @@ function NewBooking() {
                 };
                 bookingDataRef.current = data;
                 hasLoadedFromSessionRef.current = true;
-                console.log("🔄 Loaded from sessionStorage during init");
                 return data;
             }
         } catch (error) {
@@ -1001,7 +987,6 @@ function NewBooking() {
     // 1. Calendar date cleanup effect
     useEffect(() => {
         if (location.state?.fromCalendarDate && !isEditMode) {
-            console.log("🧹 Clearing stale sessionStorage for new calendar navigation");
             clearAllSessionData();
         }
     }, [location.state, isEditMode, clearAllSessionData]);
@@ -1014,7 +999,6 @@ function NewBooking() {
                 try {
                     const parsedReceipts = JSON.parse(savedReceipts);
                     setReceipts(Array.isArray(parsedReceipts) ? parsedReceipts : []);
-                    console.log("📋 Loaded receipts from session storage:", parsedReceipts.length);
                 } catch (error) {
                     console.error("Error parsing saved receipts:", error);
                     setReceipts([]);
@@ -1027,7 +1011,6 @@ function NewBooking() {
     useEffect(() => {
         if (isEditMode && editingQuotId && receipts.length > 0) {
             safeSessionStorage.setReceipts(editingQuotId, receipts);
-            console.log(`💾 Saved ${receipts.length} receipts to session storage for ${editingQuotId}`);
         }
     }, [receipts, isEditMode, editingQuotId]);
 
@@ -1095,8 +1078,7 @@ function NewBooking() {
         }));
     }, [setBookingData]);
 
-    // 7. Location state handling with protection
-    // 7. Location state handling with protection - FIXED
+
     // 7. Location state handling with protection - FIXED
     useEffect(() => {
         const processState = async () => {
@@ -1203,7 +1185,7 @@ function NewBooking() {
     // 8. Load API Data
     useEffect(() => {
         const loadData = async () => {
-            console.log("🔄 Running loadData effect");
+
             try {
                 const [venuesData, initialData, statusData] = await Promise.all([
                     venueApi.getVenues(),
@@ -1259,7 +1241,7 @@ function NewBooking() {
                             update.bookingToDate = serverNow;
                             update.bookingToTime = serverNow;
                         } else {
-                            console.log("🚫 Skipped overwriting booking dates in loadData (from calendar)");
+                            console.warn("🚫 Skipped overwriting booking dates in loadData (from calendar)");
                         }
 
                         return { ...prev, ...update };
@@ -1406,11 +1388,11 @@ function NewBooking() {
         const fetchQuotationDetails = async () => {
             try {
                 const apiUrl = `/banquetapi/get_quot_details.php?quot_id=${quotId}&hotel_id=${hotelId}`;
-                console.log("📡 Fetch quotation details:", apiUrl);
+
 
                 const res = await fetch(apiUrl);
                 const data = await res.json();
-                console.log("📦 Quotation details response:", data);
+
 
                 // Store receipts data
                 setReceipts(data?.receipts || []);
@@ -1754,7 +1736,7 @@ function NewBooking() {
             return false;
         }
 
-        console.log('✅ All validations passed!');
+
         return true;
     }, [safeToast, dateValidation, highlightInvalidField, clearFieldHighlights, scrollToField]);
     const handleKeyDown = useCallback((e) => {
@@ -1873,7 +1855,7 @@ function NewBooking() {
                     if (editingQuotId) {
                         safeSessionStorage.setReceipts(editingQuotId, updated);
                     }
-                    console.log("🔄 Receipts updated immediately:", updated);
+
                     return updated;
                 });
             } else {
@@ -1916,8 +1898,6 @@ function NewBooking() {
     // Handle venue change
     const handleVenueChange = useCallback((e) => {
         const venueName = e.target.value;
-        console.log("🎯 Selected venue name:", venueName);
-        console.log("📊 Available venues:", venues);
 
         if (!venueName) {
             setBookingData(prev => ({
@@ -1957,7 +1937,7 @@ function NewBooking() {
         }
 
         if (selectedVenue) {
-            console.log("✅ Found venue:", selectedVenue);
+
 
             // Extract ID from multiple possible fields
             const venueId = selectedVenue.LedgerId ||
@@ -1987,7 +1967,7 @@ function NewBooking() {
             safeSessionStorage.setItem("venueId", venueId);
             safeSessionStorage.setItem("venueName", actualVenueName);
 
-            console.log("✅ Venue set:", { actualVenueName, venueId });
+
         } else {
             console.warn("⚠️ Venue not found in list, using custom name:", venueName);
             // Allow custom venue names
@@ -2383,12 +2363,10 @@ function NewBooking() {
                 AddedFrom: addedFromFlag,
             };
 
-            console.log("📦 Booking JSON Payload:", JSON.stringify(requestBody, null, 2));
-            console.log(`🎯 Invoice Flag: ${invoiceFlag} (Action: ${action}, isInvoiceAction: ${isInvoiceAction})`);
 
             try {
                 const response = await bookingApi.submitBooking(requestBody);
-                console.log("✅ API Response:", response);
+
 
                 if (response?.success || response?.status === "success" || response?.status === "ok") {
                     const quotationId = response?.quot_id || response?.quotation_id || response?.success;
@@ -2413,12 +2391,7 @@ function NewBooking() {
                             0
                         );
                         const calculatedBalance = billTotal - actualReceivedAmount;
-                        console.log("💰 Final Bill Calculations:", {
-                            billTotal,
-                            actualReceivedAmount,
-                            calculatedBalance,
-                            receiptCount: updatedReceipts.length
-                        });
+
                         // 🔴 IMPORTANT: after invoice is created/updated, clear draft/session
                         clearAllSessionData();
 
@@ -2523,16 +2496,12 @@ function NewBooking() {
     const handleAddItem = useCallback(() => {
         // Prevent multiple calls with flag
         if (isAddingItemRef.current) {
-            console.log('🛑 Prevented duplicate add item call');
+            console.warn('🛑 Prevented duplicate add item call');
             return;
         }
         isAddingItemRef.current = true;
         const currentItemData = currentItemRef.current;
-        console.log('🔄 handleAddItem called with:', {
-            itemName: currentItemData.itemName,
-            editingIndex,
-            currentState: bookingDataRef.current.itemDetails.length
-        });
+
 
         // Better validation
         if (!currentItemData?.itemName?.trim()) {
@@ -2582,11 +2551,11 @@ function NewBooking() {
             if (editingIndex !== null && editingIndex >= 0 && editingIndex < updatedItems.length) {
                 // Update existing item
                 updatedItems[editingIndex] = newItem;
-                console.log("✅ Item updated at index:", editingIndex);
+
             } else {
                 // Add new item
                 updatedItems.push(newItem);
-                console.log("✅ New item added. Total items:", updatedItems.length);
+
             }
 
             return { ...prev, itemDetails: updatedItems };
@@ -2630,7 +2599,7 @@ function NewBooking() {
         // Reset the flag after a short delay
         setTimeout(() => {
             isAddingItemRef.current = false;
-            console.log('✅ Add item flag reset');
+
         }, 1000);
 
     }, [editingIndex, defaultItem, setBookingData, setCurrentItem, safeToast]);
@@ -2723,7 +2692,7 @@ function NewBooking() {
             setCurrentItem(defaultItem);
         }
 
-        console.log("✅ Item deleted successfully");
+
 
         setTimeout(() => {
             safeToast.info("Item removed", {
@@ -2830,11 +2799,7 @@ function NewBooking() {
         userSetBookingTimeRef.current = false;
         hasLoadedFromSessionRef.current = false;
 
-        console.log("🔄 Form reset", {
-            receiptsPreserved: preserveCurrentReceipts.length,
-            enquiryQuotId: preserveEnquiryQuotId,
-            fromEnquiry: preserveFromEnquiry
-        });
+
     }, [
         defaultBookingData, defaultItem, setBookingData,
         setCurrentItem, isEditMode, editingQuotId, editingBillId,
@@ -2909,11 +2874,7 @@ function NewBooking() {
 
         // Fallback: if it was started from an Enquiry but backTo not set
         if (fromEnquiry) {
-            // 👉 You can either go to a fixed route:
-            // navigate('/enquiry-dashboard', { replace: true });
 
-            // or, if you prefer, use history:
-            // navigate(-1);
 
             navigate('/enquiry-dashboard', { replace: true }); // adjust path if different
             return;
@@ -2947,7 +2908,7 @@ function NewBooking() {
         enquiryAppliedRef.current = true;  // ✅ only apply once
 
         const enq = st.enquiryMeta;
-        console.log("🧾 Applying enquiry to NewBooking:", enq);
+
 
         // 1) Parse function date/times
         const fromDT = parseEnquiryDateTime(enq.FunctionFrom);
@@ -3174,7 +3135,7 @@ function NewBooking() {
 
                 // If NO dialog is open AND form has changes, show confirmation
                 if (!isAnyDialogOpen && isDirty) {
-                    console.log('Showing confirmation dialog');
+
                     event.preventDefault();
                     event.stopPropagation();
                     setOpenConfirm(true);
@@ -3184,33 +3145,33 @@ function NewBooking() {
 
                 // Close the currently open dialog (in order of priority)
                 if (openConfirm) {
-                    console.log('Closing openConfirm dialog');
+
                     event.preventDefault();
                     event.stopPropagation();
                     setOpenConfirm(false);
                 } else if (openSaveConfirm) {
-                    console.log('Closing openSaveConfirm dialog');
+
                     event.preventDefault();
                     event.stopPropagation();
                     setOpenSaveConfirm(false);
                 } else if (openPrintConfirm) {
-                    console.log('Closing openPrintConfirm dialog');
+
                     event.preventDefault();
                     event.stopPropagation();
                     setOpenPrintConfirm(false);
                 } else if (deleteReceiptConfirm.open) {
-                    console.log('Closing deleteReceiptConfirm dialog');
+
                     event.preventDefault();
                     event.stopPropagation();
                     setDeleteReceiptConfirm({ open: false, receipt: null });
                 } else if (openInvoiceDialog) {
-                    console.log('Closing openInvoiceDialog');
+
                     event.preventDefault();
                     event.stopPropagation();
                     setOpenInvoiceDialog(false);
                     setInvoiceWithPrint(false);
                 } else if (openReceiptDialog) {
-                    console.log('Closing openReceiptDialog');
+
                     event.preventDefault();
                     event.stopPropagation();
                     setOpenReceiptDialog(false);
@@ -3227,22 +3188,22 @@ function NewBooking() {
 
                 // Only prevent default in specific dialog contexts
                 if (openConfirm) {
-                    console.log('Confirming back navigation');
+
                     event.preventDefault();
                     event.stopPropagation();
                     handleBackNavigation();
                 } else if (openSaveConfirm) {
-                    console.log('Confirming save');
+
                     event.preventDefault();
                     event.stopPropagation();
                     handleSaveConfirm();
                 } else if (openPrintConfirm) {
-                    console.log('Confirming print');
+
                     event.preventDefault();
                     event.stopPropagation();
                     handlePrintConfirm();
                 } else if (deleteReceiptConfirm.open) {
-                    console.log('Confirming receipt deletion');
+                    ;
                     event.preventDefault();
                     event.stopPropagation();
                     confirmDeleteReceipt();
@@ -3305,39 +3266,39 @@ function NewBooking() {
 
                 switch (e.key) {
                     case 'F2':
-                        console.log('F2 - Save clicked');
+
                         handleSaveClick();
                         break;
                     case 'F1':
-                        console.log('F1 - Reset clicked');
+
                         handleReset();
                         break;
                     case 'F3':
-                        console.log('F3 - Item page');
+
                         handleItemPage();
                         break;
                     case 'F4':
-                        console.log('F4 - Make invoice');
+
                         if (isEditMode) handleMakeInvoice();
                         break;
                     case 'F5':
-                        console.log('F5 - Make receipt');
+
                         if (isEditMode) handleMakeReceipt();
                         break;
                     case 'F6':
-                        console.log('F6 - New party');
+
                         handleNewParty();
                         break;
                     case 'F7':
-                        console.log('F7 - New company');
+
                         handleNewCompany();
                         break;
                     case 'F8':
-                        console.log('F8 - New function');
+
                         handleNewFunction();
                         break;
                     case 'F9':
-                        console.log('F9 - Serving names');
+
                         handleServingNames();
                         break;
                     default:
@@ -3440,13 +3401,13 @@ function NewBooking() {
                     setInvoiceWithPrint(false);
                 }}
                 onConfirm={() => {
-                    console.log(`🔄 ${editingBillId ? "Modifying" : "Creating"} invoice only...`);
+
                     setInvoiceWithPrint(false);
                     const fakeEvent = { preventDefault: () => { } };
                     handleSubmit(fakeEvent, "invoice");
                 }}
                 onConfirmWithPrint={() => {
-                    console.log(`🔄 ${editingBillId ? "Modifying" : "Creating"} invoice with print...`);
+
                     setInvoiceWithPrint(true);
                     const fakeEvent = { preventDefault: () => { } };
                     handleSubmit(fakeEvent, "invoice-print");

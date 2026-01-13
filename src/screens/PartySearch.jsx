@@ -44,11 +44,11 @@ function PartySearch() {
           return;
         }
 
-        console.log("🔍 Searching parties with term:", search);
+        
 
         // Use the centralized API function
         const response = await bookingApi.searchParties(search);
-        console.log("📦 API Response:", response);
+      
 
         // Handle different response structures
         if (Array.isArray(response)) {
@@ -111,7 +111,7 @@ function PartySearch() {
 
   // Handle party selection
   const handleSelect = useCallback((party) => {
-    console.log("✅ Selected party:", party);
+ 
 
     // Extract fields from API response
     const partyId = party?.LedgerId || "";

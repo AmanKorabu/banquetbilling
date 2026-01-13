@@ -50,7 +50,6 @@ const BillPreview = () => {
             );
             const data = await response.json();
 
-            console.log("🔍 Full Bill API Response:", data);
 
             if (data.result && data.result.length > 0) {
                 setBillData(data);
@@ -59,14 +58,9 @@ const BillPreview = () => {
                 const events = data.events || [];
                 const allItems = events.flatMap(event => event.items_arr || []);
 
-                console.log("🔍 Main Data:", mainData);
-                console.log("🔍 Events:", events);
-                console.log("🔍 All Items:", allItems);
 
                 const calculatedSubTotal = allItems.reduce((sum, item) =>
                     sum + (parseFloat(item.Quantity || 0) * parseFloat(item.Rate || 0)), 0);
-                console.log("🔍 Calculated SubTotal from items:", calculatedSubTotal);
-                console.log("🔍 API SubTotal:", mainData.SubtotalAll || mainData.SubTotalAll || mainData.SubTotal);
 
             } else {
                 toast.error("Bill not found");
@@ -91,7 +85,7 @@ const BillPreview = () => {
             toast.info("Generating PDF...");
 
             const billElement = document.getElementById('bill-print');
-            
+
             // Generate high-quality canvas
             const canvas = await html2canvas(billElement, {
                 scale: 2,
@@ -107,15 +101,15 @@ const BillPreview = () => {
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = pdf.internal.pageSize.getHeight();
-            
+
             // Calculate dimensions to fit PDF page
             const imgWidth = canvas.width;
             const imgHeight = canvas.height;
             const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
             const imgX = (pdfWidth - imgWidth * ratio) / 2;
-            
+
             pdf.addImage(canvas, 'JPEG', imgX, 0, imgWidth * ratio, imgHeight * ratio);
-            
+
             // Generate PDF as blob
             const pdfBlob = pdf.output('blob');
             await sharePDFViaWhatsApp(pdfBlob);
@@ -130,14 +124,14 @@ const BillPreview = () => {
 
     const sharePDFViaWhatsApp = async (pdfBlob) => {
         const mainData = billData.result[0];
-        
+
         // Create file object
         const pdfFile = new File([pdfBlob], `invoice_${mainData.InvoiceNo || invoiceId}.pdf`, {
             type: 'application/pdf'
         });
 
         // Create message
-        const message = 
+        const message =
             `*XPRESS BANQUET - INVOICE*\n\n` +
             `Guest: ${mainData.PartyName}\n` +
             `Function: ${mainData.FunctionName}\n` +
@@ -158,7 +152,7 @@ const BillPreview = () => {
                 toast.success("PDF shared successfully via WhatsApp!");
                 return;
             } catch (shareError) {
-                console.log("Native share failed:", shareError);
+                message.error("Native share failed:", shareError);
             }
         }
 
@@ -166,10 +160,10 @@ const BillPreview = () => {
         const pdfUrl = URL.createObjectURL(pdfBlob);
         const encodedMessage = encodeURIComponent(message);
         const whatsappUrl = `https://wa.me/91${whatsappNumber}?text=${encodedMessage}`;
-        
+
         // Open WhatsApp
         window.open(whatsappUrl, '_blank');
-        
+
         // Auto-download the PDF for manual attachment
         setTimeout(() => {
             const downloadLink = document.createElement('a');
@@ -178,10 +172,10 @@ const BillPreview = () => {
             document.body.appendChild(downloadLink);
             downloadLink.click();
             document.body.removeChild(downloadLink);
-            
+
             toast.info(
                 <div>
-                    PDF downloaded. Please attach it manually to WhatsApp.<br/>
+                    PDF downloaded. Please attach it manually to WhatsApp.<br />
                     <small>File: invoice_{mainData.InvoiceNo || invoiceId}.pdf</small>
                 </div>,
                 { autoClose: 5000 }
@@ -205,14 +199,14 @@ const BillPreview = () => {
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = pdf.internal.pageSize.getHeight();
-            
+
             const imgWidth = canvas.width;
             const imgHeight = canvas.height;
             const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
             const imgX = (pdfWidth - imgWidth * ratio) / 2;
-            
+
             pdf.addImage(canvas, 'JPEG', imgX, 0, imgWidth * ratio, imgHeight * ratio);
-            
+
             const mainData = billData.result[0];
             pdf.save(`invoice_${mainData.InvoiceNo || invoiceId}.pdf`);
             toast.success("PDF downloaded successfully!");
@@ -479,18 +473,6 @@ const BillPreview = () => {
 
     const remainingBalance = grandTotal - advanceReceived;
 
-    console.log("💰 FINAL CALCULATIONS:", {
-        calculatedSubTotal,
-        apiSubTotal,
-        finalSubTotal: subTotal,
-        calculatedGrandTotal,
-        apiGrandTotal,
-        finalGrandTotal: grandTotal,
-        advanceReceived,
-        remainingBalance,
-        groupedItems,
-    });
-
     // 🔴 Derive a proper invoice date/time string from API
     const rawInvoiceDate =
         mainData.InvoiceDate ||
@@ -572,7 +554,7 @@ const BillPreview = () => {
                             className="btn-whatsapp-pdf"
                             disabled={generatingPDF || !whatsappNumber}
                         >
-                            <FaFilePdf /> 
+                            <FaFilePdf />
                             {generatingPDF ? "Generating..." : "SHARE PDF"}
                         </button>
                         <button
@@ -698,7 +680,7 @@ const BillPreview = () => {
                         </tbody>
                     </table>
                 </div>
-     
+
                 {/* Items Table with Sub-Categories */}
                 <div className="items-section">
                     <table className="items-table">
@@ -1038,7 +1020,7 @@ const BillPreview = () => {
                     <div className="closing">
                         <p className="thank-you">Thank You! Visit Again!</p>
                         <p className="print-date">
-                            {new Date().toLocaleDateString("en-GB")}{ " "}
+                            {new Date().toLocaleDateString("en-GB")}{" "}
                             {new Date().toLocaleTimeString("en-IN", {
                                 hour: "2-digit",
                                 minute: "2-digit",

@@ -121,10 +121,8 @@ const DemoBillList = () => {
       const fromDateStr = fromDate.format("YYYY-MM-DD");
       const toDateStr = toDate.format("YYYY-MM-DD");
       const apiUrl = `/banquetapi/get_quot_list4.php?hotel_id=${hotelId}&fromdate=${fromDateStr}&todate=${toDateStr}&venue_id=0&comp_id=0&status_id=0`;
-      console.log("📡 Fetching bills from:", apiUrl);
       const response = await fetch(apiUrl);
       const data = await response.json();
-      console.log("📦 API Response:", data);
 
       if (data && data.result && Array.isArray(data.result)) {
         const transformedBills = data.result.map((bill, index) => ({
@@ -150,7 +148,7 @@ const DemoBillList = () => {
           single_event: bill.single_event || "1",
           quotation_event_id: bill.QuotationEventId || ""
         }));
-        console.log("🔄 Transformed bills:", transformedBills);
+     
         setBills(transformedBills);
       } else {
         console.warn("⚠️ Unexpected API response format:", data);

@@ -95,12 +95,12 @@ const DeletedQuotList = () => {
       const toDateStr = toDate.format("YYYY-MM-DD");
       const apiUrl = `/banquetapi/get_quot_list_deleted.php?hotel_id=${hotelId}&fromdate=${fromDateStr}&todate=${toDateStr}`;
 
-      console.log("📡 Fetching deleted quotations from:", apiUrl);
+     
 
       const res = await fetch(apiUrl);
       const data = await res.json();
 
-      console.log("📦 API Response:", data);
+ 
 
       const parsed = Array.isArray(data)
         ? data

@@ -81,12 +81,12 @@ function UpcomingEvents() {
       const hotelId = localStorage.getItem("hotel_id") || "290";
       const apiUrl = `/banquetapi/get_quot_list15_days.php?hotel_id=${hotelId}`;
 
-      console.log("📡 Fetching events from:", apiUrl);
+     
 
       const response = await fetch(apiUrl);
       const data = await response.json();
 
-      console.log("📦 API Response:", data);
+
 
       if (data && data.result && Array.isArray(data.result)) {
         const transformedEvents = data.result.map((event, index) => {
@@ -129,7 +129,7 @@ function UpcomingEvents() {
         });
 
         setEvents(transformedEvents);
-        console.log("🔄 Transformed events:", transformedEvents);
+       
 
         // Calculate stats
         const total = transformedEvents.length;

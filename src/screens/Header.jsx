@@ -967,6 +967,23 @@ function Header() {
             max-width: 100%;
             width: 85vw;
           }
+             .responsive-sidebar12 {
+          position: fixed;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          max-width: 320px;
+          height: 95vh;
+          background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+          color: #f8fafc;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          z-index: 1100;
+          box-shadow: 4px 0 30px rgba(0, 0, 0, 0.3);
+          border-right: 1px solid rgba(255, 255, 255, 0.1);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
 
           .sidebar-header12,
           .sidebar-quick-stats,

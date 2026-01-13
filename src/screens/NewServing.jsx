@@ -43,9 +43,9 @@ function NewServing() {
           return;
         }
 
-        console.log("🔍 Searching servings with term:", search);
+
         const response = await bookingApi.searchServingNames(search);
-        console.log("📦 API Response:", response);
+    
 
         if (Array.isArray(response)) {
           setServingList(response);
@@ -102,7 +102,7 @@ function NewServing() {
   const handleCancel = useCallback(() => setOpenConfirm(false), []);
 
   const handleSelect = useCallback((serving) => {
-    console.log("✅ Selected serving:", serving);
+
 
     const servingId = serving?.LedgerId || serving?.ServingId || serving?.id || "";
     const servingName = serving?.LedgerName || serving?.ServingName || serving?.Name || "";
@@ -111,7 +111,7 @@ function NewServing() {
     sessionStorage.setItem("servingName", servingName);
     sessionStorage.setItem("selectedServing", JSON.stringify(serving));
 
-    console.log("💾 Stored serving in session:", { servingId, servingName });
+  
 
     navigate("/new-booking", {
       state: {

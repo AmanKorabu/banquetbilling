@@ -666,11 +666,11 @@ function NewEnquiry() {
         AddedFrom: "E",
       };
 
-      console.log("📦 Submitting enquiry payload:", requestBody);
+     
 
       try {
         const response = await bookingApi.submitBooking(requestBody);
-        console.log("✅ Enquiry API response:", response);
+        
 
         if (
           response?.success ||

@@ -20,6 +20,12 @@ const EventMaster = () => {
     }
     const onFinish = (values) => {
         console.log(values);
+        const payload = {
+            eventName: values.eventName,
+            fromTime: values.fromTime.toString(),
+            toTime: values.toTime.toString(),
+        }
+        console.log(payload);
         form.resetFields()
         setOpen(false)
 
@@ -64,7 +70,7 @@ const EventMaster = () => {
                             <Form.Item
                                 name='toTime'
                                 label='To Time:'>
-                                <TimePicker format='HH:mm A' />
+                                <TimePicker format='hh:mm A' />
                             </Form.Item>
                         </Col>
                     </Row>

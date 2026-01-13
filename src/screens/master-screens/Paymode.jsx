@@ -19,6 +19,13 @@ const Paymode = () => {
     }
     const onFinish = (values) => {
         console.log(values);
+        const payload = {
+            paymode: values.paymode,
+            cashReturn: values.cashReturn ? 1 : 0,
+            roomTransfer: values.roomTransfer ? 1 : 0,
+            creditTrasfer: values.creditTrasfer ? 1 : 0,
+        }
+        console.log(payload);
         form.resetFields()
         setOpen(false)
     }
@@ -49,13 +56,16 @@ const Paymode = () => {
                     >
                         <Input />
                     </Form.Item>
-                    <Form.Item
-                        name='modes'>
-                        <Checkbox.Group>
-                            <Checkbox value='cash_return'>Cash Return</Checkbox>
-                            <Checkbox value='room_transfer'>Room Transfer</Checkbox>
-                            <Checkbox value='credit_transfer'>Credit Transfer</Checkbox>
-                        </Checkbox.Group>
+
+                    {/* Checkbox options for different modes */}
+                    <Form.Item label='Select Modes' name='cashReturn' style={{ marginBottom: 0 }} valuePropName='checked'>
+                        <Checkbox>Cash Return</Checkbox>
+                    </Form.Item>
+                    <Form.Item name='roomTransfer' style={{ marginBottom: 0 }} valuePropName='checked' >
+                        <Checkbox>Room Transfer</Checkbox>
+                    </Form.Item>
+                    <Form.Item name='creditTrasfer' style={{ marginBottom: 0 }} valuePropName='checked'>
+                        <Checkbox>Credit Transfer</Checkbox>
                     </Form.Item>
 
                 </Form>

@@ -787,7 +787,6 @@ function NewEnquiryDialog({ open, onClose, onSuccess, editData = null }) {
       AddedFrom: "E",
     };
 
-    console.log("📤 Enquiry Submit Payload:", requestBody);
 
     try {
       const response = await bookingApi.submitBooking(requestBody);

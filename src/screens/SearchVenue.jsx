@@ -19,7 +19,7 @@ function SearchVenue() {
         setLoading(true);
         setError("");
         const response = await bookingApi.getVenues(search);
-        console.log("📦 Venue API Response:", response);
+     
 
         if (Array.isArray(response)) setVenues(response);
         else if (response?.result && Array.isArray(response.result)) setVenues(response.result);
@@ -38,7 +38,7 @@ function SearchVenue() {
 
   // 🧱 Handle user selecting a venue
   const handleSelect = (venue) => {
-    console.log("✅ Selected venue:", venue);
+   
 
     const venueId = venue.VenueId || venue.id || "";
     const venueName = venue.VenueName || venue.Name || "";

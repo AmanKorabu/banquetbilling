@@ -31,10 +31,10 @@ function EnqPartySearch() {
           return;
         }
 
-        console.log("🔍 Searching parties with term:", search);
+       
         
         const response = await bookingApi.searchParties(search);
-        console.log("📦 API Response:", response);
+      
         
         // Handle different response structures
         if (Array.isArray(response)) {
@@ -90,7 +90,7 @@ function EnqPartySearch() {
 
   // Handle party selection
   const handleSelect = (party) => {
-    console.log("✅ Selected party:", party);
+   
     
     const selectedParty = {
       LedgerName: party.LedgerName || party.Name || party.partyName || party.CustName || "",
@@ -100,8 +100,7 @@ function EnqPartySearch() {
       original: party
     };
 
-    console.log("📤 Sending party data to NewEnquiry:", selectedParty);
-
+   
     navigate("/new-enquiry", {
       state: {
         selectedParty: selectedParty

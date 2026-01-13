@@ -8,7 +8,7 @@ const DeletedItemsModal = ({ activeopen, onCancel, data, loadingDlt, onRestore, 
   return (
     <>
       <Modal
-        title={<h2>Deleted Companies</h2>}
+        title={<h2>{titileName}</h2>}
         open={activeopen}
         centered
         footer={<Button onClick={onCancel}>Close</Button>}

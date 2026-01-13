@@ -44,11 +44,11 @@ function NewFunction() {
           return;
         }
 
-        console.log("🔍 Searching functions with term:", search);
+  
 
         // Use the centralized API function
         const response = await bookingApi.searchFunctions(search);
-        console.log("📦 API Response:", response);
+        
 
         // Handle different response structures
         if (Array.isArray(response)) {
@@ -112,7 +112,7 @@ function NewFunction() {
 
   // Handle function selection
   const handleSelect = useCallback((func) => {
-    console.log("✅ Selected function:", func);
+   
 
     // ✅ Add functionId just like functionName
     const funcId = func.LedgerId || func.id || func.FunctionId || "";

@@ -27,6 +27,7 @@ import { format, parseISO, isValid, isBefore, isAfter, addDays, startOfDay, endO
 import Header from './Header';
 import useEscapeNavigate from '../hooks/EscapeNavigate';
 import { toast } from 'react-toastify';
+import { message } from 'antd';
 
 const UnsettledBill = () => {
     const [bills, setBills] = useState([]);
@@ -118,7 +119,7 @@ const UnsettledBill = () => {
                 }
             }
         } catch (err) {
-            console.log('Could not fetch hotels list, using default', err);
+            message.error('Could not fetch hotels list, using default', err);
         }
     };
 
@@ -229,7 +230,7 @@ const UnsettledBill = () => {
             const date = new Date(year, month - 1, day);
             return isValid(date) ? format(date, 'yyyy-MM-dd') : '';
         } catch (err) {
-            console.log(err);
+            message.error(err);
 
             return '';
         }
@@ -242,7 +243,7 @@ const UnsettledBill = () => {
             const date = parseISO(dateStr);
             return isValid(date) ? format(date, 'dd-MM-yyyy') : '';
         } catch (err) {
-            console.log(err);
+            message.error(err);
             return '';
         }
     };
@@ -280,7 +281,7 @@ const UnsettledBill = () => {
             setError(null);
 
             const apiUrl = getApiUrl();
-            console.log('Fetching bills from:', apiUrl);
+          
 
             const response = await axios.get(apiUrl, {
                 timeout: 15000,
@@ -532,15 +533,14 @@ const UnsettledBill = () => {
                 reason
             )}`;
 
-            console.log("Deleting bill with URL:", apiUrl);
+          
 
             const response = await fetch(apiUrl, {
                 method: "GET",
             });
 
             const result = await response.text();
-            console.log("Delete response:", result);
-
+   
             if (!response.ok) {
                 throw new Error("Failed to delete bill");
             }

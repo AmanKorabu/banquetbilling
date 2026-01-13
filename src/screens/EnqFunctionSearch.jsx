@@ -30,10 +30,10 @@ function EnqFunctionSearch() {
           return;
         }
 
-        console.log("🔍 Searching functions with term:", search);
+     
 
         const response = await bookingApi.searchFunctions(search);
-        console.log("📦 API Response:", response);
+       
 
         // Handle different response structures
         if (Array.isArray(response)) {
@@ -112,7 +112,7 @@ function EnqFunctionSearch() {
       original: func,
     };
 
-    console.log("📤 Sending function to NewEnquiry:", selectedFunction);
+   
 
     navigate("/new-enquiry", { state: { selectedFunction } });
   };

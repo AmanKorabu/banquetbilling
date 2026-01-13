@@ -8,9 +8,9 @@ import { useNavigate } from 'react-router-dom';
 import { IoNewspaperOutline, IoChevronForward } from "react-icons/io5";
 import CountUp from 'react-countup';
 import Header from './Header';
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BellIcon } from "lucide-react";
-import MasterScreen from "../components/ReusableCompnents/MasterScreen";
+import { message } from "antd";
 
 function MainDashboard() {
   const navigate = useNavigate();
@@ -18,38 +18,94 @@ function MainDashboard() {
     todayEvents: 0,
     upcomingEvents: 0
   });
+  const prevUpcomingRef = useRef(0);
+  const prevAmountRef = useRef(null);
+  const hasNotifiedRef = useRef(false); // Track if notification was shown in current session
+  const isMountedRef = useRef(false); // Prevent initial notification
+
   const [loading, setLoading] = useState(true);
-  const hotel_id = localStorage.getItem('hotel_id')
+  const hotel_id = localStorage.getItem('hotel_id');
+  
   // Fetch notification counts from API
-  useEffect(() => {
-    const fetchNotificationCounts = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(
-          `/banquetapi/get_notification_counts.php?hotel_id=${hotel_id}`
-        );
-        const data = await response.json();
+  const fetchNotificationCounts = async () => {
+    try {
+      const response = await fetch(
+        `/banquetapi/get_notification_counts.php?hotel_id=${hotel_id}`
+      );
+      const data = await response.json();
 
-        if (data.result && data.result.length > 0) {
-          const counts = data.result[0];
-          setNotificationCounts({
-            todayEvents: parseInt(counts.today_events) || 0,
-            upcomingEvents: parseInt(counts.next_15_days_events) || 0
-          });
+      if (data.result && data.result.length > 0) {
+        const counts = data.result[0];
+        const upcoming = parseInt(counts.next_15_days_events) || 0;
+
+        // Get the last known count from localStorage
+        const lastKnownCount = parseInt(localStorage.getItem('last_upcoming_count') || '0');
+        const notificationTimestamp = parseInt(localStorage.getItem('notification_timestamp') || '0');
+        const currentTime = Date.now();
+
+        // SMART NOTIFICATION LOGIC:
+        // 1. Only show if count increased AND we haven't notified for this count yet
+        // 2. Check if notification was shown in the last 5 seconds (cooldown)
+        // 3. Store the count when we notify
+        if (upcoming > lastKnownCount) {
+          // Check if we already notified for this count
+          const lastNotifiedCount = parseInt(localStorage.getItem('last_notified_count') || '0');
+          
+          // Only notify if:
+          // - We haven't notified for this specific count yet, AND
+          // - It's been at least 5 seconds since last notification, OR this is a different count
+          if (upcoming !== lastNotifiedCount && 
+              (currentTime - notificationTimestamp > 5000 || upcoming > lastNotifiedCount)) {
+            
+            if (isMountedRef.current) { // Don't show notification on initial mount
+              message.success("🔔 New Upcoming Event Added!");
+              hasNotifiedRef.current = true;
+              
+              // Store the count we just notified for
+              localStorage.setItem('last_notified_count', upcoming.toString());
+              localStorage.setItem('notification_timestamp', currentTime.toString());
+            }
+          }
+        } else if (upcoming < lastKnownCount) {
+          // If count decreased, reset notification flag
+          hasNotifiedRef.current = false;
         }
-      } catch (error) {
-        console.error('Error fetching notification counts:', error);
-        // Set default values on error
-        setNotificationCounts({
-          todayEvents: 0,
-          upcomingEvents: 0
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
 
+        // Always update the last known count
+        localStorage.setItem('last_upcoming_count', upcoming.toString());
+        prevUpcomingRef.current = upcoming;
+
+        setNotificationCounts({
+          todayEvents: parseInt(counts.today_events) || 0,
+          upcomingEvents: upcoming
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching notification counts", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Set mounted flag after initial render
+    const timer = setTimeout(() => {
+      isMountedRef.current = true;
+    }, 1000);
+
+    // First fetch
     fetchNotificationCounts();
+
+    // 🔁 fetch every 5 seconds instead of 2 seconds to reduce frequency
+    const interval = setInterval(() => {
+      fetchNotificationCounts();
+    }, 5000);
+
+    // Cleanup
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -179,7 +235,7 @@ function MainDashboard() {
 
           <span className="today-text">
             <svg className="today-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2 2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
             Today's Events
           </span>
@@ -273,12 +329,20 @@ function MainDashboard() {
                   <div className="metric-stats">
                     {event.amount ? (
                       <span className="metric-amount">
-                        <CountUp
-                          start={event.amount - 1000}
-                          end={event.amount}
-                          duration={1.20}
-                          formattingFn={formatIndianCurrency}
-                        />
+                        {prevAmountRef.current === null ? (
+                          <CountUp
+                            start={0}
+                            end={event.amount}
+                            duration={1.2}
+                            formattingFn={formatIndianCurrency}
+                            onEnd={() => {
+                              prevAmountRef.current = event.amount;
+                            }}
+                          />
+                        ) : (
+                          <span>{formatIndianCurrency(event.amount)}</span>
+                        )}
+
                       </span>
                     ) : (
                       <div className="metric-label-container">
@@ -321,9 +385,9 @@ function MainDashboard() {
             </div>
           ))}
         </div>
-       
+
       </div>
-      
+
 
       <style>{`
   /* =========================================

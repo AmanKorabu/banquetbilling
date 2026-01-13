@@ -64,7 +64,7 @@ function MakeReceipt() {
         localStorage.getItem("user_id") ||
         "";
 
-    console.log("✅ resolved loginId =", loginId);
+  
 
     /* ---------- Local state ---------- */
     const [receiptDateTime] = useState(dayjs()); // fixed at open time
@@ -112,7 +112,7 @@ function MakeReceipt() {
     useEffect(() => {
         // already had from navigation
         if (ledgerId) {
-            console.log("✅ ledgerId from navigation =", ledgerId);
+          
             return;
         }
 
@@ -125,7 +125,7 @@ function MakeReceipt() {
             "";
 
         if (ssLedger) {
-            console.log("✅ ledgerId from sessionStorage =", ssLedger);
+            
             setLedgerId(ssLedger);
             return;
         }
@@ -136,7 +136,6 @@ function MakeReceipt() {
                 if (!hotelId || !quot_id) return;
 
                 const url = `/banquetapi/get_quot_details.php?quot_id=${quot_id}&hotel_id=${hotelId}`;
-                console.log("📡 Fetching quotation for ledger id:", url);
                 const res = await fetch(url);
                 const data = await res.json();
                 const main = data?.result?.[0] || {};
@@ -149,7 +148,6 @@ function MakeReceipt() {
                     "";
 
                 if (apiPartyId) {
-                    console.log("✅ ledgerId from API =", apiPartyId);
                     setLedgerId(apiPartyId);
                 } else {
                     console.warn("⚠️ Could not resolve ledgerId from API.");
@@ -304,7 +302,6 @@ function MakeReceipt() {
         formBody.append("quot_id", String(quot_id || ""));
 
         const payloadObject = Object.fromEntries(formBody);
-        console.log("📦 save_inward payload:", payloadObject);
 
         try {
             const res = await fetch("/banquetapi/save_inward.php", {
@@ -316,10 +313,9 @@ function MakeReceipt() {
             });
 
             const text = await res.text();
-            console.log("✅ save_inward raw response:", text);
+            
 
-            // 🔍 LOG for debugging
-            console.log("login_id sent =", loginId, "ledgerId sent =", ledgerId);
+      
 
             // ✅ Don't depend on res.ok, just check text from your PHP
             if (text && text.includes("1")) {

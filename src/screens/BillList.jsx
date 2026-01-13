@@ -147,12 +147,10 @@ const BillList = () => {
 
             const apiUrl = `/banquetapi/get_bill_list2.php?hotel_id=${hotelId}&fromdate=${fromDateStr}&todate=${toDateStr}&venue_id=0&comp_id=0&party_id=0`;
 
-            console.log("📡 Fetching bills from:", apiUrl);
 
             const response = await fetch(apiUrl);
             const data = await response.json();
 
-            console.log("📦 API Response:", data);
 
             if (data && data.result && Array.isArray(data.result)) {
                 const transformedBills = data.result.map((bill, index) => ({
@@ -175,7 +173,6 @@ const BillList = () => {
                     ).toFixed(2),
                 }));
 
-                console.log("🔄 Transformed bills:", transformedBills);
                 setBills(transformedBills);
                 // toast.success(`Loaded ${transformedBills.length} bills`, { toastId: "bill-loaded" });
             } else {
@@ -340,14 +337,12 @@ const BillList = () => {
                 deletePopup.reason
             )}`;
 
-            console.log("🗑️ Deleting bill with URL:", apiUrl);
 
             const response = await fetch(apiUrl, {
                 method: "GET", // API uses GET
             });
 
-            const result = await response.text();
-            console.log("✅ Delete response:", result);
+             await response.text();
 
             if (!response.ok) {
                 throw new Error("Failed to delete bill");

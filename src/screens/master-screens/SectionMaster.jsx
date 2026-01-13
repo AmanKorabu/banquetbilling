@@ -6,6 +6,21 @@ import axios from 'axios'
 import DeletedItemsModal from '../../components/ReusableCompnents/DeletedItemsModal'
 import DeleteModal from '../../components/ReusableCompnents/DeleteModal'
 
+const billingModesOptions = [
+    { id: 1, label: 'Dine Inn' },
+    { id: 2, label: 'Direct Bill' },
+];
+const printingModesOptions = [
+    { id: 1, label: 'KOT then Bill' },
+    { id: 2, label: 'KOT and Bill' },
+    { id: 3, label: 'Bill Only' },
+];
+const settlementDataOptions = [
+    { id: 1, label: 'After Bill' },
+    { id: 2, label: 'Direct Settlement' },
+    { id: 3, label: 'Pending' },
+];
+
 const SectionMaster = () => {
     const [form] = Form.useForm();
     const [open, setOpen] = useState(false);
@@ -23,14 +38,11 @@ const SectionMaster = () => {
     const [showDirectPayMode, setShowDirectPaymode] = useState(false);
     const [settlementData, setSettlementData] = useState([])
 
-
-
-
     const fetchSections = React.useCallback(async () => {
         try {
             setLoading(true)
             const response = await axios.get(`/banquetapi/get_all_outlets.php?hotelid=${hotel_id}`);
-            console.log(response.data);
+
             const formatData = response.data.result.map((item) => ({
                 id: item.OutletID,
                 name: item.OutletName
@@ -54,14 +66,13 @@ const SectionMaster = () => {
 
             setLoading(true)
             const response = await axios.get(`/banquetapi/get_deleted_outlets.php?hotelid=${hotel_id}`);
-            console.log(response.data);
             const formattedData = response.data.result.map((item) => ({
                 id: item.OutletID,
                 name: item.OutletName,
             }))
             setDeletedSections(formattedData);
         } catch (err) {
-            console.log(err);
+            message.error('server error!!!', err)
 
         }
         finally {
@@ -73,20 +84,17 @@ const SectionMaster = () => {
         DeletedSections()
     }, [])
 
-    // const edit = () => {
-    // }
-    const DeleteSection = ((company) => {
+    const DeleteSection = React.useCallback((company) => {
         setDeleteTarget(company)
         setDeleteOpen(true)
 
-    })
+    }, [])
 
     const DeleteItem = async () => {
         if (!deleteTarget) return;
         try {
             setLoading(true);
-            const response = await axios.get(`/banquetapi/delete_or_active_outlet.php?outlet_id=${deleteTarget.id}&action=delete`)
-            console.log(response);
+            await axios.get(`/banquetapi/delete_or_active_outlet.php?outlet_id=${deleteTarget.id}&action=delete`)
             message.info(`${deleteTarget.name} is deleted`)
 
         } catch (error) {
@@ -102,10 +110,8 @@ const SectionMaster = () => {
         try {
             setLoading(true);
             setRestoreId(item.id);
-            console.log(item.name);
 
-            const res = await axios.get(`/banquetapi/delete_or_active_outlet.php?outlet_id=${item.id}&action=active`)
-            console.log(res);
+            await axios.get(`/banquetapi/delete_or_active_outlet.php?outlet_id=${item.id}&action=active`)
             message.info(`${item.name} section is activated`)
 
         } catch (err) {
@@ -118,7 +124,6 @@ const SectionMaster = () => {
         }
     }
     const onFinish = async (values) => {
-        console.log(values);
         try {
             setLoading(true);
             const payload = {
@@ -144,13 +149,11 @@ const SectionMaster = () => {
                 str_table_time: values.Table_Turnover_Time ? 1 : 0,
                 str_direct_paymodeid: values.directPayMode ?? 0,
             }
-            console.log('paymode is......', payload);
             setOpen(false)
             if (isEditMode) {
 
-                console.log('edit mode');
                 const body = new URLSearchParams(payload);
-                const response = await axios.post(`/banquetapi/modify_outlet.php`, body, {
+                await axios.post(`/banquetapi/modify_outlet.php`, body, {
                     headers: {
                         "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
                     },
@@ -160,7 +163,7 @@ const SectionMaster = () => {
             }
             else {
                 const body = new URLSearchParams(payload);
-                const response = await axios.post(`/banquetapi/save_outlet.php`, body, {
+                await axios.post(`/banquetapi/save_outlet.php`, body, {
                     headers: {
                         "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
                     },
@@ -168,7 +171,6 @@ const SectionMaster = () => {
                 message.success("Section is saved successfully");
                 form.resetFields();
                 setOpen(false);
-                console.log(response);
                 fetchSections();
 
             }
@@ -180,15 +182,17 @@ const SectionMaster = () => {
 
         }
     }
-    const edit = async (item) => {
+    const edit = React.useCallback(async (item) => {
         setEditMode(true)
         setOpen(true)
         setEditId(item.id)
-        console.log(editId);
         try {
             const res = await axios.get(`/banquetapi/get_outlet_details2.php?outlet_id=${item.id}`)
-            console.log(res.data.result);
-            const section = res.data.result[0]
+
+            const section = res.data.result[0];
+            const billingModesId = billingModesOptions.find(mode => mode.label === section.BillingMode)?.id || null;
+            const printingModesId = printingModesOptions.find(mode => mode.label === section.PrintingMode)?.id || null;
+            const settlementSettingId = settlementDataOptions.find(mode => mode.label === section.StettlementSetting)?.id || null;
             form.setFieldsValue({
                 sectionName: section.OutletName,
                 DisplayIdx: section.DisplayIndex,
@@ -199,9 +203,9 @@ const SectionMaster = () => {
                 e_bill_SMS: section.EBillSms == 1,
                 Delivery_mode: section.DeliveryMode == 1,
                 Table_Turnover_Time: section.TableTime == 1,
-                billingModes: section.BillingMode,
-                printingMode: section.PrintingMode,
-                settlementSetting: section.StettlementSetting,
+                billingModes: billingModesId,
+                printingMode: printingModesId,
+                settlementSetting: settlementSettingId,
                 extraCharges_percentage: section.ExtraChargesFood_Per,
                 extraCharges_amt: section.ExtraChargesFood_Amt,
                 color: section.BackgroundColor,
@@ -212,18 +216,16 @@ const SectionMaster = () => {
         } finally {
             setLoading(false);
         }
-
-
-    }
-    const addNew = () => {
+    }, [form])
+    const addNew = React.useCallback(() => {
         setOpen(true);
         setEditMode(false);
         form.resetFields();
-    }
+    }, [form])
+
     const fetchSettlement = async () => {
         try {
             const response = await axios.get(`/banquetapi/get_all_pay_modes.php?hotel_id=${hotel_id}`)
-            console.log('Fetch settlement', response.data.result);
             setSettlementData(response.data.result)
 
         } catch (error) {
@@ -276,10 +278,10 @@ const SectionMaster = () => {
                     <Form.Item
                         label='Display Index'
                         name='DisplayIdx'
-                        rules={[{ required: true, message: 'Display Index is required', type: 'number', }]}
+                        rules={[{ required: true, message: 'Display Index is required' }]}
 
                     >
-                        <InputNumber style={{ width: '100%', height: '43px' }} />
+                        <input type='number' />
                     </Form.Item>
 
 
@@ -338,16 +340,24 @@ const SectionMaster = () => {
 
                     <Form.Item label="Billing Mode" name="billingModes">
                         <Select placeholder="Select billing mode">
-                            <Select.Option value={1}>Dine In</Select.Option>
-                            <Select.Option value={2}>Direct Bill</Select.Option>
+                            {
+                                billingModesOptions
+                                    .map((item) => (
+                                        <Select.Option key={item.id} value={item.id}>{item.label}</Select.Option>
+                                    ))
+                            }
+
                         </Select>
                     </Form.Item>
 
                     <Form.Item label="Printing Mode" name="printingMode">
                         <Select placeholder="Select printing mode">
-                            <Select.Option value={1}>KOT then Bill</Select.Option>
-                            <Select.Option value={2}>KOT & Bill</Select.Option>
-                            <Select.Option value={3}>Bill Only</Select.Option>
+                            {
+                                printingModesOptions.map((item) => (
+                                    <Select.Option key={item.id} value={item.id}>{item.label}</Select.Option>
+                                ))
+                            }
+
                         </Select>
                     </Form.Item>
 
@@ -361,9 +371,14 @@ const SectionMaster = () => {
                                     setShowDirectPaymode(false)
                                 }
                             }}>
-                            <Select.Option value={1}>After Bill</Select.Option>
+                            {
+                                settlementDataOptions.map((item) => (
+                                    <Select.Option key={item.id} value={item.id}>{item.label}</Select.Option>
+                                ))
+                            }
+                            {/* <Select.Option value={1}>After Bill</Select.Option>
                             <Select.Option value={2}>Direct Settlement</Select.Option>
-                            <Select.Option value={3}>Pending</Select.Option>
+                            <Select.Option value={3}>Pending</Select.Option> */}
                         </Select>
                     </Form.Item>
                     {showDirectPayMode && (
@@ -386,21 +401,20 @@ const SectionMaster = () => {
                     )}
 
 
-                    <Row>
-
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                         <Form.Item
-                            label='Extra Charges (Percentage)'
+                            label='Extra Charges (%)'
                             name='extraCharges_percentage'
                         >
-                            <InputNumber />
+                            <input type='number' style={{ width: '100%' }} />
                         </Form.Item>
                         <Form.Item
-                            label='Extra Charges (Amount)'
+                            label='Extra Charges (₹)'
                             name='extraCharges_amt'
                         >
-                            <InputNumber />
+                            <input type='number' style={{ width: '100%' }} />
                         </Form.Item>
-                    </Row>
+                    </div>
                     <Form.Item
                         label='Color'
                         name='color'
@@ -424,14 +438,17 @@ const SectionMaster = () => {
                 deleteTarget={deleteTarget}
             />
             <DeletedItemsModal
+                titileName='Sections'
                 activeopen={activeOpen}
                 onCancel={() => setActiveOpen(false)}
                 data={deletedSections}
                 loadingDlt={loading}
                 onRestore={restoreData}
                 restoringId={restoringId}
-                titileName='Sections'
             />
+            <Modal
+
+            ></Modal>
 
         </>
     )

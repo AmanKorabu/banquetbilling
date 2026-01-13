@@ -6,8 +6,6 @@ import axios from 'axios';
 import DeleteModal from '../../components/ReusableCompnents/DeleteModal';
 import DeletedItemsModal from '../../components/ReusableCompnents/DeletedItemsModal';
 
-
-
 const Company = () => {
     const [open, setOpen] = useState(false);
     const [openDelete, setOpenDelete] = useState(false);
@@ -16,16 +14,13 @@ const Company = () => {
     const [tableLoading, setTableLoading] = useState(false);
     const [modalLoading, setModalLoading] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
-
     const [isEditMode, setEditMode] = useState(false);
-    
     const [editId, setEditId] = useState(null)
     const [form] = Form.useForm();
     const [activeopen, setActiveOpen] = useState(false);
     const [data, setData] = useState([]);
     const [restoringId, setRestoringId] = useState(null);
     const hotel_id = localStorage.getItem('hotel_id')
-
 
     const fetchCompanies = React.useCallback(async () => {
         try {
@@ -54,11 +49,7 @@ const Company = () => {
     useEffect(() => {
         fetchCompanies()
     }, [fetchCompanies])
-    // const activeCompanies = [
-    //     { id: 1, name: 'RN Softwares and consultors' },
-    //     { id: 2, name: 'Aman PVT LTD' },
-    //     { id: 3, name: 'annan' }
-    // ];
+
     const edit = React.useCallback(async (item) => {
         setOpen(true);
         setEditMode(true)
@@ -105,6 +96,7 @@ const Company = () => {
     const viewDeleted = React.useCallback(() => {
         setActiveOpen(true)
     }, [])
+
     const userId = localStorage.getItem('user_id')
 
     const onFinish = async (values) => {
@@ -152,8 +144,8 @@ const Company = () => {
             fetchCompanies();
 
         } catch (err) {
-            console.error(err);
-            message.error("Failed to save company");
+
+            message.error("Failed to save company", err);
         } finally {
             setModalLoading(false);
         }
@@ -163,7 +155,7 @@ const Company = () => {
 
         try {
             setDeleteLoading(true);
-            const response = axios.get(`/banquetapi/delete_or_active_comp.php?menu_id=${deleteTarget.id}&action=delete`
+            await axios.get(`/banquetapi/delete_or_active_comp.php?menu_id=${deleteTarget.id}&action=delete`
             );
 
             message.info(`${deleteTarget.name} is deleted succesfully`);
@@ -209,15 +201,13 @@ const Company = () => {
         try {
             setRestoringId(item.id);
             setDeleteLoading(true);
-            const response = await axios.get(`/banquetapi/delete_or_active_comp.php?menu_id=${item.id}&action=active`);
+            await axios.get(`/banquetapi/delete_or_active_comp.php?menu_id=${item.id}&action=active`);
             message.success(`${item.name} restored successfully!`);
-            fetchCompanies();       // refresh active list
-            // fetchDeletedCompanies(); // refresh deleted list
+            fetchCompanies();
         } catch (err) {
-            console.error(err);
-            message.error('Failed to restore company');
+
+            message.error('Failed to restore company', err);
         } finally {
-            // fetchCompanies();       // refresh active list
             setActiveOpen(false)
             fetchDeletedCompanies()
             setDeleteLoading(false);
@@ -245,6 +235,7 @@ const Company = () => {
                 }
                 centered
                 width={600}
+                loading={modalLoading}
             >
 
                 <Form

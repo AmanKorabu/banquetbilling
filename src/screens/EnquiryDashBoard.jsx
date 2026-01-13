@@ -17,6 +17,7 @@ import useEscapeNavigate from "../hooks/EscapeNavigate";
 
 import NewEnquiryDialog from "../components/NewEnquiryDialog";
 import { useNotify } from "../context/NotifyProvider";
+import { message } from "antd";
 
 function EnquiryDashBoard() {
   const navigate = useNavigate();
@@ -30,7 +31,7 @@ function EnquiryDashBoard() {
       if (typeof notifyApi.notify === "function") return notifyApi.notify(message, type, opts);
       if (typeof notifyApi === "function") return notifyApi(message, type, opts);
 
-      console.log(`[${type}]`, message);
+
     },
     [notifyApi]
   );
@@ -107,12 +108,12 @@ function EnquiryDashBoard() {
         hotelId
       )}&fromdate=${encodeURIComponent(fromDateStr)}&todate=${encodeURIComponent(toDateStr)}`;
 
-      console.log("📤 Fetch Enquiries URL:", apiUrl);
+
 
       const res = await fetch(apiUrl, { cache: "no-store" });
       const data = await res.json();
 
-      console.log("📦 RAW API RESPONSE:", data);
+
 
       const parsed = Array.isArray(data) ? data : Array.isArray(data?.result) ? data.result : [];
 
@@ -140,16 +141,15 @@ function EnquiryDashBoard() {
 
   // FIXED: Enhanced handleEditEnquiry with API call to get full details
   const handleEditEnquiry = async (item) => {
-    console.log("🔄 handleEditEnquiry called with:", item);
-    console.log("🔍 Checking if we have attended by data in list item...");
+
 
     // Check what we have in the list item
     const listItemAttendedBy = item.AttendedBy || item.attended_by || "";
-    console.log("📋 Attended by from list item:", listItemAttendedBy);
+
 
     if (listItemAttendedBy) {
       // If we have it in the list, use it directly
-      console.log("✅ Using attended by from list item:", listItemAttendedBy);
+
 
       const editData = {
         ...item,
@@ -170,12 +170,12 @@ function EnquiryDashBoard() {
         FunctionTo: item.FunctionTo,
       };
 
-      console.log("📋 Prepared editData from list:", editData);
+
       setEditingEnquiry(editData);
       setShowNewEnquiryDialog(true);
     } else {
       // If not in list, fetch from API
-      console.log("📡 Attended by not in list, fetching from API...");
+
       await fetchEnquiryDetailsForEdit(item);
     }
   };
@@ -203,17 +203,17 @@ function EnquiryDashBoard() {
 
       for (const endpoint of apiEndpoints) {
         try {
-          console.log(`🔍 Trying API endpoint: ${endpoint}`);
+
           const res = await fetch(endpoint, { cache: "no-store" });
           const data = await res.json();
 
           if (data && (data.result || data.data || Array.isArray(data))) {
-            console.log(`✅ Found data from ${endpoint}:`, data);
+            message.error(`✅ Found data from ${endpoint}:`, data);
             enquiryDetails = data;
             break;
           }
         } catch (err) {
-          console.log(`❌ Failed to fetch from ${endpoint}:`, err.message);
+          message.error(`❌ Failed to fetch from ${endpoint}:`, err.message);
           continue;
         }
       }
@@ -260,7 +260,7 @@ function EnquiryDashBoard() {
         extractedData = enquiryDetails;
       }
 
-      console.log("📋 Extracted enquiry details:", extractedData);
+
 
       // Extract attended by from the details
       let attendedByName = "";
@@ -281,7 +281,7 @@ function EnquiryDashBoard() {
       for (const field of possibleNameFields) {
         if (extractedData[field] && String(extractedData[field]).trim()) {
           attendedByName = String(extractedData[field]).trim();
-          console.log(`✅ Found attended by name in field "${field}":`, attendedByName);
+
           break;
         }
       }
@@ -289,7 +289,7 @@ function EnquiryDashBoard() {
       for (const field of possibleIdFields) {
         if (extractedData[field] && String(extractedData[field]).trim()) {
           attendedById = String(extractedData[field]).trim();
-          console.log(`✅ Found attended by ID in field "${field}":`, attendedById);
+
           break;
         }
       }
@@ -318,14 +318,7 @@ function EnquiryDashBoard() {
         FunctionTo: extractedData.FunctionTo || item.FunctionTo,
       };
 
-      console.log("📋 Final editData for dialog:", {
-        QuotationNo: editData.QuotationNo,
-        PartyName: editData.PartyName,
-        AttendedBy: editData.AttendedBy,
-        AttendedById: editData.AttendedById,
-        Company: editData.Company,
-        Function: editData.Function
-      });
+
 
       setEditingEnquiry(editData);
       setShowNewEnquiryDialog(true);
@@ -385,7 +378,7 @@ function EnquiryDashBoard() {
       QuotationNo: item.QuotationNo, // Store the enquiry number
     };
 
-    console.log("📤 Passing to NewBooking - enquiryQuotId:", item.QuotationId);
+
 
     // ADD THESE 3 LINES - Store in session storage
     sessionStorage.setItem('enquiryMeta', JSON.stringify(enquiryMeta));
@@ -656,13 +649,22 @@ function EnquiryDashBoard() {
 
               <div className="header-actions">
                 <button
+                  className="action-btn primary-btn"
+                  onClick={handleNewEnquiry}
+                  title="New Enquiry (F1)"
+                  type="button"
+                >
+                  <IoIosAddCircleOutline /> ADD NEW
+
+                </button>
+                <button
                   className="action-btn today-btn"
                   onClick={resetDatesToToday}
                   title="Reset to today (Shift+T)"
                   type="button"
                 >
-                  <FaCalendarAlt />
-                  <span className="btn-text">Today</span>
+                  Today
+
                 </button>
                 <button
                   className="action-btn refresh-btn"
@@ -671,18 +673,10 @@ function EnquiryDashBoard() {
                   title="Refresh (Shift+R)"
                   type="button"
                 >
-                  <FaSync className={loading ? "spinning" : ""} />
-                  <span className="btn-text">{loading ? "..." : "Refresh"}</span>
+                  <FaSync className={loading ? "spinning" : ""} />Refresh
+                  <span className="btn-text">{loading ? "..." : ""}</span>
                 </button>
-                <button
-                  className="action-btn primary-btn"
-                  onClick={handleNewEnquiry}
-                  title="New Enquiry (F1)"
-                  type="button"
-                >
-                  <IoIosAddCircleOutline />
-                  <span className="btn-text">New</span>
-                </button>
+
               </div>
             </div>
 

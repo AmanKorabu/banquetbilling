@@ -32,10 +32,10 @@ function EnqCompanySearch() {
                     return;
                 }
 
-                console.log("🔍 Searching companies with term:", search);
+               
 
                 const response = await bookingApi.searchCompanies(search);
-                console.log("📦 API Response:", response);
+              
 
                 // Handle different response structures
                 if (Array.isArray(response)) {
@@ -115,7 +115,7 @@ function EnqCompanySearch() {
             original: company,
         };
 
-        console.log("📤 Sending company to NewEnquiry:", selectedCompany);
+      
 
         navigate("/new-enquiry", { state: { selectedCompany } });
     };

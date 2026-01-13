@@ -115,14 +115,12 @@ function MakeReceiptDialog({
     // ---------- Resolve ledger id (fallbacks) ----------
     useEffect(() => {
         if (ledgerId) {
-            console.log("✅ ledgerId from navigation/dialog =", ledgerId);
             return;
         }
 
         const ssLedger = sessionStorage.getItem("partyId") || sessionStorage.getItem("PartyId") || sessionStorage.getItem("ledgerId") || sessionStorage.getItem("LedgerId") || "";
 
         if (ssLedger) {
-            console.log("✅ ledgerId from sessionStorage =", ssLedger);
             setLedgerId(ssLedger);
             return;
         }
@@ -132,7 +130,6 @@ function MakeReceiptDialog({
                 if (!hotelId || !quot_id) return;
 
                 const url = `/banquetapi/get_quot_details.php?quot_id=${quot_id}&hotel_id=${hotelId}`;
-                console.log("📡 Fetching quotation for ledger id (dialog):", url);
                 const res = await fetch(url);
                 const data = await res.json();
                 const main = data?.result?.[0] || {};
@@ -140,7 +137,6 @@ function MakeReceiptDialog({
                 const apiPartyId = main.PartyId || main.LedgerId || main.party_id || main.ledger_id || "";
 
                 if (apiPartyId) {
-                    console.log("✅ ledgerId from API =", apiPartyId);
                     setLedgerId(apiPartyId);
                 } else {
                     console.warn("⚠️ Could not resolve ledgerId from API.");

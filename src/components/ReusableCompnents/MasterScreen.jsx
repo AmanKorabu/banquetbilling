@@ -1,10 +1,20 @@
+import { Button } from 'antd';
+import { SearchCodeIcon } from 'lucide-react';
 import React from 'react';
 import { LuPencil, LuTrash2 } from "react-icons/lu";
 
 const MasterScreen = (props) => {
+    const isGroupedData = props.Data && !Array.isArray(props.Data);
 
     const hasRate = React.useMemo(() => {
-        return props.Data?.length > 0 && 'rate' in props.Data[0];
+        if (!props.Data) return false;
+
+        if (Array.isArray(props.Data)) {
+            return props.Data.length > 0 && 'rate' in props.Data[0];
+        }
+
+        const firstGroup = Object.values(props.Data)[0];
+        return firstGroup?.length > 0 && 'rate' in firstGroup[0];
     }, [props.Data]);
 
     const handleEdit = React.useCallback(
@@ -20,12 +30,20 @@ const MasterScreen = (props) => {
 
     return (
         <div className="container">
+            
             <div className="header">
+                
                 <h1>{props.title}</h1>
+                {props.showSearch && (
+                    <div className="search-container3">
+                        <Button onClick={props.onClick}> <SearchCodeIcon /> Search</Button>
+                    </div>
+                )}
                 <div className="actions">
                     <button className="btn primary" onClick={props.newBtn}>New</button>
                     <button className="btn secondary" onClick={props.deleteViewBtn}>View Deleted {props.viewTitle}</button>
                 </div>
+                
             </div>
 
             <div className="table-container">
@@ -37,6 +55,7 @@ const MasterScreen = (props) => {
                 </div>
 
                 <div className="table-body">
+
                     {props.loading && (
                         <div className="loading-overlay">
                             <div className="loader"></div>
@@ -44,29 +63,61 @@ const MasterScreen = (props) => {
                         </div>
                     )}
 
-                    {props.Data.map((item, idx) => (
-                        <div key={item.id} className="table-row">
+                    {/* 🔹 GROUPED DATA (WITH SUBCATEGORY) */}
+                    {isGroupedData && Object.keys(props.Data).map((groupName) => (
+                        <div key={groupName}>
 
+                            {/* CATEGORY HEADER */}
+                            <div style={{
+                                background: '#1976d2',
+                                color: '#fff',
+                                padding: '6px 1.5rem',
+                                fontWeight: 600,
+                                fontSize: '0.85rem'
+                            }}>
+                                {groupName}
+                            </div>
+
+                            {/* ITEMS */}
+                            {props.Data[groupName].map((item, idx) => (
+                                <div key={item.id} className="table-row">
+                                    <div className="col sr-no">{idx + 1}</div>
+                                    <div className="col name">{item.name}</div>
+                                    {hasRate && <div className="col rate">{item.rate || '-'}</div>}
+
+                                    <div className="col actions-col">
+                                        <button className="action-btn" onClick={() => handleEdit(item)}>
+                                            <LuPencil size={14} />
+                                        </button>
+                                        <button className="action-btn" onClick={() => handleDelete(item)}>
+                                            <LuTrash2 />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+
+                    {/* 🔹 NORMAL DATA (NO SUBCATEGORY) */}
+                    {!isGroupedData && Array.isArray(props.Data) && props.Data.map((item, idx) => (
+                        <div key={item.id} className="table-row">
                             <div className="col sr-no">{idx + 1}</div>
                             <div className="col name">{item.name}</div>
-                            {hasRate && <div className='col rate'>{item.rate || '-'}</div>}
+                            {hasRate && <div className="col rate">{item.rate || '-'}</div>}
 
                             <div className="col actions-col">
                                 <button className="action-btn" onClick={() => handleEdit(item)}>
-
-                                    <span>
-                                        <LuPencil size={14} />
-                                    </span>
+                                    <LuPencil size={14} />
                                 </button>
                                 <button className="action-btn" onClick={() => handleDelete(item)}>
-                                    <span>
-                                        <LuTrash2 />
-                                    </span>
+                                    <LuTrash2 />
                                 </button>
                             </div>
                         </div>
                     ))}
+
                 </div>
+
             </div>
 
             <style jsx>{`
@@ -274,7 +325,7 @@ const MasterScreen = (props) => {
                         flex-direction: column  ;
                         align-items: center;
                         gap: 1rem;
-                        margin-bottom: 1.5rem;
+                        margin-bottom: 1rem;
                     }
                     
                     .actions {
@@ -302,7 +353,7 @@ const MasterScreen = (props) => {
                     }
                     
                     .col {
-                        padding: 1rem;
+                        padding: 0.5rem;
                     }
                     
                     .actions-col {
